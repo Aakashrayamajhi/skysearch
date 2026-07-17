@@ -55,6 +55,29 @@ Responsibilities:
 
 This layer improves security and simplifies client interaction by hiding internal service complexity.
 
+## Project Structure
+```
+api-gateway/
+├── src/
+│   ├── routes/
+│   │   └── search.route.js
+│   ├── controllers/
+│   │   └── gateway.controller.js
+│   ├── middlewares/
+│   │   ├── auth.middleware.js
+│   │   ├── rateLimiter.js
+│   │   └── logging.middleware.js
+│   ├── services/
+│   │   └── proxy.service.js   # forward to search-service
+│   ├── clients/
+│   │   └── search.client.js
+│   └── app.js
+├── configs/
+├── Dockerfile
+└── README.md
+
+```
+
 ---
 
 ### 2. Search Service
@@ -70,6 +93,30 @@ Responsibilities:
 * Combine and format results before returning to the client
 
 This service is latency-sensitive and optimized for fast read operations.
+
+## Folder structure
+
+```
+search-service/
+├── src/
+│   ├── controllers/
+│   │   └── search.controller.js
+│   ├── services/
+│   │   ├── search.service.js
+│   │   ├── query.service.js
+│   │   └── ranking.service.js
+│   ├── repositories/
+│   │   ├── index.repo.js
+│   │   └── cache.repo.js
+│   ├── clients/
+│   │   ├── elastic.client.js
+│   │   └── redis.client.js
+│   ├── models/
+│   └── app.js
+├── configs/
+└── Dockerfile
+
+```
 
 ---
 
@@ -87,6 +134,28 @@ Responsibilities:
 
 This service operates asynchronously and is designed for high throughput.
 
+## Folder Structure
+
+```
+crawler-service/
+├── src/
+│   ├── workers/
+│   │   └── crawler.worker.js
+│   ├── services/
+│   │   ├── crawl.service.js
+│   │   └── url.service.js
+│   ├── queue/
+│   │   └── producer.js
+│   ├── parsers/
+│   │   └── html.parser.js
+│   ├── utils/
+│   │   └── robots.js
+│   └── app.js
+├── configs/
+└── Dockerfile
+
+```
+
 ---
 
 ### 4. Indexer Service
@@ -103,6 +172,28 @@ Responsibilities:
 
 This service bridges raw data and the searchable index.
 
+## Folder Structure
+
+```
+
+indexer-service/
+├── src/
+│   ├── consumers/
+│   │   └── crawl.consumer.js   
+│   ├── services/
+│   │   ├── index.service.js
+│   │   ├── tokenize.service.js
+│   │   └── normalize.service.js
+│   ├── repositories/
+│   │   └── index.repo.js
+│   ├── clients/
+│   │   └── elastic.client.js
+│   └── app.js
+├── configs/
+└── Dockerfile
+
+```
+
 ---
 
 ### 5. Ranking Service
@@ -118,6 +209,25 @@ Responsibilities:
 
 This service is typically used for secondary ranking to improve relevance.
 
+## Folder Structure
+
+```
+ranking-service/
+├── src/
+│   ├── services/
+│   │   ├── ranking.service.js
+│   │   ├── scoring.service.js
+│   │   └── features.service.js
+│   ├── models/
+│   │   └── ranking.model.js
+│   ├── utils/
+│   │   └── math.js
+│   └── app.js
+├── configs/
+└── Dockerfile
+
+```
+
 ---
 
 ### 6. Ingestion Service
@@ -132,6 +242,25 @@ Responsibilities:
 * Enable analytics and monitoring use cases
 
 This service is essential for maintaining data quality and supporting analytics workflows.
+
+## Folder structure
+
+```
+ingestion-service/
+├── src/
+│   ├── consumers/
+│   │   ├── crawl.consumer.js
+│   │   └── log.consumer.js
+│   ├── services/
+│   │   ├── process.service.js
+│   │   └── validate.service.js
+│   ├── repositories/
+│   │   └── storage.repo.js
+│   └── app.js
+├── configs/
+└── Dockerfile
+
+```
 
 ---
 
