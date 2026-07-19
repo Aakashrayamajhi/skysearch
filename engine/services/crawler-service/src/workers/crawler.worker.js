@@ -40,7 +40,7 @@ async function startCrawler() {
         });
 
         // Kafka publish
-        await publishCrawledPage({
+        await send({
             url,
             content: text,
             links,
