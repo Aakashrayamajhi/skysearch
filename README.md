@@ -55,7 +55,7 @@ Responsibilities:
 
 This layer improves security and simplifies client interaction by hiding internal service complexity.
 
-## Project Structure
+## Folder Structure
 ```
 api-gateway/
 ├── src/
