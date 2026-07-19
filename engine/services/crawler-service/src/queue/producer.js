@@ -4,16 +4,16 @@ const { Kafka, logLevel, Partitioners } = require("kafkajs");
 const logger = require("../utils/logger");
 
 const kafka = new Kafka({
-    clientId: "crawler-service",
-    brokers: ["localhost:9092"],
+    clientId: process.env.KAFKA_CLIENT_ID || "crawler-service",
+    brokers: (process.env.KAFKA_BROKERS || "localhost:9092").split(","),
     logLevel: logLevel.NOTHING
 });
 
 const producer = kafka.producer({
     createPartitioner: Partitioners.LegacyPartitioner,
     retry: {
-        retries: 5,
-        initialRetryTime: 300
+        retries: Number(process.env.KAFKA_RETRIES || 5),
+        initialRetryTime: Number(process.env.KAFKA_INITIAL_RETRY_TIME || 300)
     }
 });
 
@@ -51,10 +51,10 @@ async function send(payload) {
         };
 
         await producer.send({
-            topic: "crawl-data",
+            topic: process.env.KAFKA_TOPIC || "crawl-data",
             messages: [message],
-            acks: -1, // strongest durability
-            timeout: 30000
+            acks: -1,
+            timeout: Number(process.env.KAFKA_SEND_TIMEOUT_MS || 30000)
         });
 
         logger.info("Kafka message sent", {
@@ -62,11 +62,15 @@ async function send(payload) {
             size: message.value.length
         });
 
+        return true;
+
     } catch (err) {
         logger.error("Kafka send failed", {
             error: err.message,
             payloadUrl: payload?.url
         });
+
+        return false;
     }
 }
 
@@ -95,4 +99,4 @@ async function shutdown() {
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
-module.exports = { send };
+module.exports = { send, shutdown };
