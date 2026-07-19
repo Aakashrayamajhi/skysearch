@@ -1,7 +1,7 @@
 "use strict";
 
 const axios = require("axios");
-const redis = require("../../cache/redis/redis.client");
+const redis = require("../../configs/redis.config")
 const logger = require("../utils/logger");
 
 const QUEUE_KEY = "crawler:queue";
