@@ -16,26 +16,40 @@ function getNumberEnv(name, fallback) {
 }
 
 const config = {
-    maxPages: getNumberEnv("MAX_PAGES", 1000),
+    maxPages: getNumberEnv("MAX_PAGES", 500),
     maxLinksPerPage: getNumberEnv("MAX_LINKS_PER_PAGE", 50),
-    maxQueueSize: getNumberEnv("MAX_QUEUE_SIZE", 5000),
+    maxQueueSize: getNumberEnv("MAX_QUEUE_SIZE", 2000),
     crawlDelayMs: getNumberEnv("CRAWL_DELAY_MS", 200),
     emptyQueueDelayMs: getNumberEnv("EMPTY_QUEUE_DELAY_MS", 1000),
     errorDelayMs: getNumberEnv("ERROR_DELAY_MS", 500)
 };
 
 // State
-let crawledCount = 0;
 let shuttingDown = false;
 
 // Utility
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function startCrawler() {
-    logger.info("Crawler worker started", {
-        config
+async function getVisitedCount() {
+    return Number(await redis.scard(VISITED_KEY));
+}
+
+async function gracefulShutdown(reason) {
+    if (shuttingDown) {
+        return;
+    }
+
+    shuttingDown = true;
+    logger.info(reason, {
+        limit: config.maxPages,
+        visitedSize: await getVisitedCount()
     });
 
+    await shutdownKafka();
+    logger.info("Crawler worker stopped");
+}
+
+async function startCrawler() {
     process.once("SIGINT", () => {
         shuttingDown = true;
         logger.warn("SIGINT received. Shutting down crawler worker.");
@@ -46,11 +60,24 @@ async function startCrawler() {
         logger.warn("SIGTERM received. Shutting down crawler worker.");
     });
 
+    const visitedSize = await getVisitedCount();
+    logger.info("Crawler worker started", {
+        config,
+        currentVisitedCount: visitedSize
+    });
+
+    if (visitedSize >= config.maxPages) {
+        await gracefulShutdown("Startup crawl state already at or above visited limit. Stopping crawler worker.");
+        return;
+    }
+
     while (!shuttingDown) {
         try {
-            if (crawledCount >= config.maxPages) {
-                logger.info("Max crawl limit reached. Shutting down crawler.");
-                break;
+            const currentVisitedSize = await getVisitedCount();
+
+            if (currentVisitedSize >= config.maxPages) {
+                await gracefulShutdown("Visited limit reached. Stopping crawler worker.");
+                return;
             }
 
             const url = await getNextUrl();
@@ -73,6 +100,11 @@ async function startCrawler() {
 
             const { links, text } = parseHtml(html, url);
 
+            if (currentVisitedSize >= config.maxPages) {
+                await gracefulShutdown("Visited limit reached before enqueue. Stopping crawler worker.");
+                return;
+            }
+
             logger.debug("Parsed content", {
                 url,
                 linksFound: links.length,
@@ -90,13 +122,18 @@ async function startCrawler() {
                 logger.warn("Page payload was not published to Kafka", { url });
             }
 
-            crawledCount++;
-
             let added = 0;
             const queueSize = await redis.llen(QUEUE_KEY);
 
             if (queueSize < config.maxQueueSize) {
-                const limitedLinks = links.slice(0, config.maxLinksPerPage);
+                const remainingSlots = Math.max(0, config.maxPages - currentVisitedSize);
+
+                if (remainingSlots === 0) {
+                    await gracefulShutdown("Visited limit reached. No more links may be enqueued.");
+                    return;
+                }
+
+                const limitedLinks = links.slice(0, Math.min(config.maxLinksPerPage, remainingSlots));
                 const enqueueResults = await Promise.allSettled(
                     limitedLinks.map((link) => enqueueUrl(link))
                 );
@@ -114,11 +151,15 @@ async function startCrawler() {
                 redis.scard(VISITED_KEY)
             ]);
 
+            if (visitedSize >= config.maxPages) {
+                await gracefulShutdown("Visited limit exceeded after enqueue. Stopping crawler worker.");
+                return;
+            }
+
             logger.info("Crawler metrics", {
-                crawledCount,
+                visitedSize,
                 linksEnqueued: added,
-                queueSize: updatedQueueSize,
-                visitedSize
+                queueSize: updatedQueueSize
             });
 
             await sleep(config.crawlDelayMs);
@@ -133,8 +174,10 @@ async function startCrawler() {
         }
     }
 
-    await shutdownKafka();
-    logger.info("Crawler worker stopped");
+    if (!shuttingDown) {
+        await shutdownKafka();
+        logger.info("Crawler worker stopped");
+    }
 }
 
 module.exports = { startCrawler };
