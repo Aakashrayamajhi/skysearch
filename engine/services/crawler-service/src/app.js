@@ -1,11 +1,25 @@
 "use strict";
 
 const { startCrawler } = require("./workers/crawler.worker");
-const urlService = require("./services/url.service");
+const { seedUrls } = require("./services/seed.service");
+const logger = require("./utils/logger");
 
 async function bootstrap() {
-    await urlService.enqueueUrl("https://example.com");
-    await startCrawler();
+    try {
+        logger.info("Bootstrapping crawler...");
+
+        const added = await seedUrls();
+
+        logger.info("Seeding completed", { added });
+
+        await startCrawler();
+
+    } catch (err) {
+        logger.error("Fatal error in bootstrap", {
+            error: err.message
+        });
+        process.exit(1);
+    }
 }
 
 bootstrap();

@@ -1,33 +1,53 @@
 "use strict";
 
 const cheerio = require("cheerio");
+const logger = require("../utils/logger");
 
-function parse(html, baseUrl) {
-    const $ = cheerio.load(html);
-
-    $("script, style, noscript").remove();
-
-    const text = $("body")
-        .text()
-        .replace(/\s+/g, " ")
-        .trim();
-
-    const links = [];
-
-    $("a[href]").each((_, el) => {
-        const href = $(el).attr("href");
-        if (href) links.push(resolveUrl(href, baseUrl));
-    });
-
-    return { text, links: links.filter(Boolean) };
-}
-
-function resolveUrl(href, base) {
+/**
+ * Parse HTML and extract links + text
+ */
+function parseHtml(html, baseUrl) {
     try {
-        return new URL(href, base).href;
-    } catch {
-        return null;
+        const $ = cheerio.load(html);
+
+        const links = [];
+        const text = $("body").text().replace(/\s+/g, " ").trim();
+
+        $("a[href]").each((_, el) => {
+            let href = $(el).attr("href");
+
+            if (!href) return;
+
+            // convert relative → absolute
+            try {
+                const absoluteUrl = new URL(href, baseUrl).href;
+                links.push(absoluteUrl);
+            } catch (err) {
+                // invalid URL skip
+            }
+        });
+
+        logger.info("HTML parsed", {
+            url: baseUrl,
+            linksExtracted: links.length
+        });
+
+        return {
+            links,
+            text
+        };
+
+    } catch (err) {
+        logger.error("HTML parsing failed", {
+            url: baseUrl,
+            error: err.message
+        });
+
+        return {
+            links: [],
+            text: ""
+        };
     }
 }
 
-module.exports = { parse };
+module.exports = { parseHtml };
