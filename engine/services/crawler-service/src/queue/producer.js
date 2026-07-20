@@ -28,7 +28,7 @@ async function init() {
     try {
         await producer.connect();
         connected = true;
-
+        console.log("kafka running")
         logger.info("Kafka producer connected");
 
     } catch (err) {
