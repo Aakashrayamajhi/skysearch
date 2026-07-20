@@ -13,6 +13,9 @@ async function bulkIndex(docs) {
     if (!docs.length) return;
 
     const body = [];
+    const timeoutMs = Number(process.env.ELASTIC_BULK_TIMEOUT_MS || 60000);
+
+    console.log("bulk indexing started", { docCount: docs.length, index: INDEX });
 
     for (const doc of docs) {
         const id = doc.url;
@@ -24,7 +27,7 @@ async function bulkIndex(docs) {
         async () => client.bulk({
             refresh: false,
             body,
-            timeout: Number(process.env.ELASTIC_BULK_TIMEOUT_MS || 60000)
+            timeout: `${timeoutMs}ms`
         }),
         {
             retries: Number(process.env.ELASTIC_BULK_RETRIES || 3),
@@ -37,6 +40,12 @@ async function bulkIndex(docs) {
         const failed = res.items.filter((item) => item.index && item.index.error);
         throw new Error(`Bulk indexing failed: ${failed.length} document(s) rejected by Elasticsearch.`);
     }
+
+    console.log("bulk indexing completed", {
+        docCount: docs.length,
+        successCount: res.items?.length || 0,
+        index: INDEX
+    });
 
     return res;
 }

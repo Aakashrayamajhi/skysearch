@@ -22,14 +22,21 @@ const consumer = kafka.consumer({
 const limit = pLimit(Number(env.INDEXER_CONCURRENCY || 10));
 let isConnected = false;
 
-async function handleMessage(message) {
+async function handleMessage({ topic, partition, message }) {
     const payload = JSON.parse(message.value.toString());
+    console.log("consumer received message", {
+        topic,
+        partition,
+        offset: message.offset,
+        url: payload?.url
+    });
+
     await indexProcess(payload);
 
     await consumer.commitOffsets([
         {
-            topic: message.topic,
-            partition: message.partition,
+            topic,
+            partition,
             offset: String(Number(message.offset) + 1)
         }
     ]);
@@ -43,21 +50,24 @@ async function startConsumer() {
     while (!isConnected) {
         try {
             await consumer.connect();
+            const topic = env.KAFKA_TOPIC || "crawl-data";
             await consumer.subscribe({
-                topic: env.KAFKA_TOPIC || "crawl-data",
+                topic,
                 fromBeginning: false
             });
 
+            console.log("indexer consumer subscribed", { topic });
+
             await consumer.run({
                 autoCommit: false,
-                eachMessage: async ({ message }) => {
+                eachMessage: async ({ topic, partition, message }) => {
                     await limit(async () => {
                         try {
-                            await handleMessage(message);
+                            await handleMessage({ topic, partition, message });
                         } catch (err) {
                             console.error("processing error", {
                                 message: err.message,
-                                topic: message.topic,
+                                topic,
                                 offset: message.offset
                             });
                         }

@@ -13,7 +13,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@elastic/elasticsearch": "^9.4.2",
+    "@elastic/elasticsearch": "^8.19.2",
     "bottleneck": "^2.19.5",
     "dotenv": "^17.4.2",
     "kafkajs": "^2.2.4",

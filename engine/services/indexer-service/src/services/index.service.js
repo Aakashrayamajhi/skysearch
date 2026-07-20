@@ -5,9 +5,30 @@ const { normalize } = require("./normalize.service");
 const { tokenize } = require("./tokenize.service");
 const { bulkIndex, hashContent } = require("../repositories/index.repo");
 
-const BATCH_SIZE = 50;
+const env = globalThis.process?.env || {};
+const BATCH_SIZE = Number(env.INDEXER_BATCH_SIZE || 50);
+const FLUSH_INTERVAL_MS = Number(env.INDEXER_FLUSH_INTERVAL_MS || 3000);
 const seen = new Set();
 let buffer = [];
+let flushTimer = null;
+
+function ensureFlushLoop() {
+    if (flushTimer) {
+        return;
+    }
+
+    flushTimer = setInterval(() => {
+        if (buffer.length) {
+            flush().catch((error) => {
+                console.error("buffer flush failed", {
+                    message: error.message
+                });
+            });
+        }
+    }, FLUSH_INTERVAL_MS);
+}
+
+ensureFlushLoop();
 
 const PayloadSchema = z.object({
     url: z.string().trim().min(1),
@@ -67,27 +88,31 @@ function buildDocument(payload) {
 async function process(payload) {
     const doc = buildDocument(payload);
     if (!doc) {
+        console.warn("indexer dropped invalid payload", { url: payload?.url });
         return;
     }
 
     const dedupeKey = `${doc.url}:${doc.hash}`;
     if (seen.has(dedupeKey)) {
+        console.log("indexer skipped duplicate document", { url: doc.url, hash: doc.hash });
         return;
     }
 
     seen.add(dedupeKey);
     buffer.push(doc);
+    console.log("indexer buffered document", { url: doc.url, hash: doc.hash, bufferSize: buffer.length });
 
     if (buffer.length >= BATCH_SIZE) {
-        const batch = buffer.splice(0, buffer.length);
-        await bulkIndex(batch);
+        await flush();
     }
 }
 
 async function flush() {
     if (buffer.length) {
         const batch = buffer.splice(0, buffer.length);
+        console.log("indexer flush started", { batchSize: batch.length });
         await bulkIndex(batch);
+        console.log("indexer flush completed", { batchSize: batch.length });
     }
 }
 
