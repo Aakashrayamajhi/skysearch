@@ -1,4 +1,4 @@
-const W = require("../config/weights");
+const W = require("../config/weights.config");
 
 class LinearScorer {
   static scoreBatch(featuresList) {
