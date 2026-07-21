@@ -1,25 +1,60 @@
+import React from "react";
+
 export default function AISidebar() {
   return (
-    <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 shadow-xl">
+    <div className="w-full max-w-sm bg-[#0B0F19] border border-white/5 rounded-2xl p-6 shadow-[0_10px_40px_rgba(0,0,0,0.6)]">
 
-      <h2 className="text-cyan-400 font-semibold text-lg">
-        ✦ AI Insight
-      </h2>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-white text-[15px] font-medium tracking-wide">
+          AI Insight
+        </h2>
+        <span className="text-[11px] text-gray-500">
+          Quantum Analysis
+        </span>
+      </div>
 
-      <p className="text-sm text-gray-400 mt-3">
-        Quantum computing is transforming aerospace engineering across materials,
-        fluid dynamics, and mission optimization.
+      {/* Image (Hero Insight) */}
+      <div className="mt-4 rounded-xl overflow-hidden border border-white/5">
+        <img
+          src="https://images.unsplash.com/photo-1635070041078-e363dbe005cb"
+          alt="Quantum computing visualization"
+          className="w-full h-40 object-cover"
+        />
+      </div>
+
+      {/* Description */}
+      <p className="mt-4 text-sm text-gray-400 leading-relaxed">
+        Quantum computing introduces a fundamentally new model of computation,
+        enabling exponential acceleration in aerospace simulations, optimization,
+        and material discovery.
       </p>
 
-      <ul className="mt-4 space-y-2 text-sm text-gray-300">
-        <li>• Material Discovery</li>
-        <li>• CFD Simulations</li>
-        <li>• Trajectory Planning</li>
-      </ul>
+      {/* Key Areas */}
+      <div className="mt-5 space-y-3">
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-500">Material Modeling</span>
+          <span className="text-gray-300">High Impact</span>
+        </div>
 
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-500">Fluid Dynamics</span>
+          <span className="text-gray-300">Advanced</span>
+        </div>
+
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-500">Trajectory Optimization</span>
+          <span className="text-gray-300">Critical</span>
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="h-px bg-white/5 my-5"></div>
+
+      {/* Input */}
       <input
-        placeholder="Ask follow-up..."
-        className="mt-5 w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm outline-none"
+        placeholder="Ask AI a follow-up..."
+        className="w-full bg-[#05070D] border border-white/5 rounded-lg px-3 py-2 text-sm text-gray-300 outline-none focus:border-white/20 transition"
       />
 
     </div>
