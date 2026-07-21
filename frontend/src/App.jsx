@@ -7,7 +7,14 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/search" element={<Search />} />
+
+        <Route path="/search" element={<Search />}>
+          <Route path="" element={<div />} /> {/* default ALL */}
+          <Route path="images" element={<div>Images Results</div>} />
+          <Route path="videos" element={<div>Videos Results</div>} />
+          <Route path="news" element={<div>News Results</div>} />
+          <Route path="maps" element={<div>Maps Results</div>} />
+        </Route>
       </Routes>
     </BrowserRouter>
   );
