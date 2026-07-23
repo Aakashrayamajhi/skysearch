@@ -8,6 +8,7 @@ const compression = require("compression");
 const pinoHttp = require("pino-http");
 
 const rankRoutes = require("./route/rank.route.js");
+const searchRoutes = require("./route/search.route.js");
 const errorHandler = require("./middlewares/error.middleware.js");
 const metrics = require("./utils/metrics");
 
@@ -35,6 +36,7 @@ app.get("/health", (req, res) => {
 // Routes
 app.use("/rank", rankRoutes);
 app.use("/api/v1/rank", rankRoutes); // backward compatibility alias
+app.use("/search", searchRoutes);
 
 app.get("/metrics", async (req, res) => {
   res.set('Content-Type', metrics.register.contentType);

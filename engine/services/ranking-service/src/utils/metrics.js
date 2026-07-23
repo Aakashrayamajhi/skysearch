@@ -13,8 +13,23 @@ const rankingRequests = new client.Counter({
   labelNames: ["status"]
 });
 
+const searchDuration = new client.Histogram({
+  name: "search_duration_seconds",
+  help: "Duration of search operations in seconds",
+  labelNames: ["page", "size", "candidates"],
+  buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5]
+});
+
+const searchRequests = new client.Counter({
+  name: "search_requests_total",
+  help: "Total number of search requests",
+  labelNames: ["status"]
+});
+
 module.exports = {
   rankingDuration,
   rankingRequests,
+  searchDuration,
+  searchRequests,
   register: client.register
 };
