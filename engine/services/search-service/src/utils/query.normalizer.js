@@ -6,7 +6,8 @@ function cleanQuery(query) {
     .toLowerCase()
     .trim()
     .replace(/[^\w\s]/g, " ")
-    .replace(/\s+/g, " ");
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function tokenize(query) {

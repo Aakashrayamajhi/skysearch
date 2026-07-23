@@ -6,11 +6,10 @@ const logger = require("../utils/logger");
 class SearchController {
   constructor() {
     this.searchService = searchService;
+    this.handleSearch = this.handleSearch.bind(this);
   }
 
   async handleSearch(req, res, next) {
-    const startTime = Date.now();
-
     try {
       const { q, page, size, filters } = req.query;
 
@@ -26,19 +25,6 @@ class SearchController {
         filters
       });
 
-      const duration = (Date.now() - startTime) / 1000;
-      logger.info(
-        {
-          query: q.trim(),
-          page: result.page,
-          size: result.size,
-          total: result.total,
-          duration,
-          cacheHit: result.cacheHit || false
-        },
-        "Search completed"
-      );
-
       return res.status(200).json({
         query: result.query,
         page: result.page,
@@ -53,4 +39,5 @@ class SearchController {
   }
 }
 
-module.exports = new SearchController();
+module.exports = SearchController;
+module.exports.default = new SearchController();

@@ -1,6 +1,9 @@
 "use strict";
 
 const Redis = require("ioredis");
+const logger = require("../utils/logger");
+
+const REDIS_TIMEOUT_MS = Number(process.env.REDIS_OPERATION_TIMEOUT_MS) || 2000;
 
 const redis = new Redis({
   host: process.env.REDIS_HOST || "localhost",
@@ -12,15 +15,16 @@ const redis = new Redis({
   retryStrategy(times) {
     const delay = Math.min(times * 50, 2000);
     return delay;
-  }
+  },
+  commandsTimeout: REDIS_TIMEOUT_MS
 });
 
 redis.on("connect", () => {
-  console.log("Redis connected");
+  logger.info("Redis connected");
 });
 
 redis.on("error", (err) => {
-  console.error("Redis connection error", err);
+  logger.error("Redis connection error", { error: err.message });
 });
 
 module.exports = redis;

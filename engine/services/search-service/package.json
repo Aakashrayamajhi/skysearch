@@ -6,7 +6,10 @@
   "scripts": {
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
-    "test": "node --test"
+    "test": "node --test test/unit/validation.test.js test/unit/query.service.test.js test/unit/cache.repo.test.js test/integration/search.controller.test.js",
+    "test:unit": "node --test test/unit/validation.test.js test/unit/query.service.test.js",
+    "test:integration": "node --test test/integration/search.controller.test.js",
+    "test:watch": "node --test --watch"
   },
   "keywords": [],
   "author": "",
@@ -18,11 +21,15 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^7.1.5",
     "helmet": "^8.3.0",
     "ioredis": "^5.4.1",
     "kafkajs": "^2.2.4",
+    "opossum": "^10.0.0",
     "pino": "^10.3.1",
-    "pino-http": "^11.0.0"
+    "pino-http": "^11.0.0",
+    "p-retry": "^8.0.0",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

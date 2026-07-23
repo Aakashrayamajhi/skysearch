@@ -1,10 +1,15 @@
 "use strict";
 
+const pRetryModule = require("p-retry");
+const pRetry = pRetryModule.default || pRetryModule;
 const axios = require("axios");
 const logger = require("../utils/logger");
 
 const RANKING_SERVICE_URL = process.env.RANKING_SERVICE_URL || "http://localhost:4000";
 const RANKING_TIMEOUT_MS = Number(process.env.RANKING_TIMEOUT_MS) || 10000;
+const RANKING_RETRIES = process.env.NODE_ENV === "test" ? 0 : Number(process.env.RANKING_RETRIES) || 2;
+const RANKING_RETRY_MIN_MS = Number(process.env.RANKING_RETRY_MIN_MS) || 200;
+const RANKING_RETRY_MAX_MS = Number(process.env.RANKING_RETRY_MAX_MS) || 2000;
 
 const axiosInstance = axios.create({
   baseURL: RANKING_SERVICE_URL,
@@ -22,29 +27,19 @@ async function search({ query, page, size, filters }) {
     params.append("filters", JSON.stringify(filters));
   }
 
-  try {
-    const response = await axiosInstance.get("/search", { params });
-    logger.info({ query, page, size }, "Ranking service called");
-    return response.data;
-  } catch (err) {
-    if (err.code === "ECONNABORTED" || err.code === "ETIMEDOUT") {
-      const timeoutError = new Error("Ranking service timed out");
-      timeoutError.statusCode = 504;
-      throw timeoutError;
+  return pRetry(
+    async () => {
+      const response = await axiosInstance.get("/search", { params });
+      return response.data;
+    },
+    {
+      retries: RANKING_RETRIES,
+      minTimeout: RANKING_RETRY_MIN_MS,
+      maxTimeout: RANKING_RETRY_MAX_MS,
+      factor: 2,
+      randomize: true
     }
-    if (err.response) {
-      const rankingError = new Error(err.response.data?.error || "Ranking service error");
-      rankingError.statusCode = err.response.status;
-      throw rankingError;
-    }
-    if (err.request) {
-      const networkError = new Error("Ranking service unavailable");
-      networkError.statusCode = 503;
-      throw networkError;
-    }
-    logger.error({ err, query, page, size }, "Ranking service call failed");
-    throw err;
-  }
+  );
 }
 
 module.exports = { search };
