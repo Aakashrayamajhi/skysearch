@@ -18,17 +18,50 @@ const client = new Client({
 const INDEX = env.ELASTIC_INDEX || "pages_v1";
 
 async function searchDocuments(query, options = {}) {
-  const body = {
-    query: {
-      multi_match: {
-        query,
-        fields: ["title^3", "content"],
-        fuzziness: "AUTO",
-        operator: "or",
-        type: "best_fields",
-        tie_breaker: 0.3
+  const filters = options.filters || {};
+
+  const boolQuery = {
+    must: [
+      {
+        multi_match: {
+          query,
+          fields: ["title^3", "content"],
+          fuzziness: "AUTO",
+          operator: "or",
+          type: "best_fields",
+          tie_breaker: 0.3
+        }
       }
-    },
+    ],
+    filter: []
+  };
+
+  if (filters.dateRange) {
+    const range = {};
+    if (filters.dateRange.from) range.gte = filters.dateRange.from;
+    if (filters.dateRange.to) range.lte = filters.dateRange.to;
+    if (Object.keys(range).length > 0) {
+      boolQuery.filter.push({ range: { fetchedAt: range } });
+    }
+  }
+
+  if (filters.domain) {
+    const domain = String(filters.domain).replace(/\*/g, "%");
+    if (domain) {
+      boolQuery.filter.push({
+        wildcard: {
+          url: domain.includes(".") ? `${domain}` : `*.${domain}`
+        }
+      });
+    }
+  }
+
+  if (filters.contentType) {
+    boolQuery.filter.push({ term: { contentType: String(filters.contentType) } });
+  }
+
+  const body = {
+    query: { bool: boolQuery },
     highlight: {
       fields: {
         title: {

@@ -13,6 +13,7 @@ class SearchService {
   async search(query, options = {}) {
     const page = Number(options.page || 1);
     const size = Number(options.size || 10);
+    const filters = options.filters || {};
 
     if (!query || typeof query !== "string") {
       throw new Error("Query is required and must be a string");
@@ -20,13 +21,13 @@ class SearchService {
 
     const trimmedQuery = query.trim();
     if (trimmedQuery.length === 0) {
-      return { results: [], page, size, totalCandidates: 0 };
+      return { results: [], page, size, totalCandidates: 0, totalResults: 0 };
     }
 
-    const esResponse = await searchDocuments(trimmedQuery, { page, size });
+    const esResponse = await searchDocuments(trimmedQuery, { page, size, filters });
 
     if (!esResponse.hits || !esResponse.hits.hits) {
-      return { results: [], page, size, totalCandidates: 0 };
+      return { results: [], page, size, totalCandidates: 0, totalResults: 0 };
     }
 
     const hits = esResponse.hits.hits;

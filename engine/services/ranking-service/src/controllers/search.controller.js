@@ -11,7 +11,7 @@ class SearchController {
 
   async search(req, res, next) {
     const startTime = Date.now();
-    const { q, page, size } = req.query;
+    const { q, page, size, filters } = req.query;
 
     if (!q || typeof q !== "string" || q.trim().length === 0) {
       return res.status(400).json({ error: "Query parameter 'q' is required" });
@@ -24,10 +24,20 @@ class SearchController {
       return res.status(400).json({ error: "Page must be >= 1 and size must be between 1 and 100" });
     }
 
+    let parsedFilters = {};
+    if (filters) {
+      try {
+        parsedFilters = JSON.parse(filters);
+      } catch {
+        parsedFilters = {};
+      }
+    }
+
     try {
       const result = await this.searchService.search(q, {
         page: pageNum,
-        size: pageSize
+        size: pageSize,
+        filters: parsedFilters
       });
 
       const duration = (Date.now() - startTime) / 1000;
