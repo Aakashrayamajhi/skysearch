@@ -1,7 +1,6 @@
-
 module.exports = Object.freeze({
-  text: 0.45,
-  pagerank: 0.25,
-  freshness: 0.15,
-  title: 0.15
+  title: 3.0,
+  content: 1.0,
+  freshness: 1.0,
+  linkBoost: 1.0
 });

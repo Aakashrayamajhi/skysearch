@@ -9,6 +9,7 @@ const pinoHttp = require("pino-http");
 
 const rankRoutes = require("./route/rank.route.js");
 const errorHandler = require("./middlewares/error.middleware.js");
+const metrics = require("./utils/metrics");
 
 const app = express();
 
@@ -32,7 +33,13 @@ app.get("/health", (req, res) => {
 });
 
 // Routes
-app.use("/api/v1/rank", rankRoutes);
+app.use("/rank", rankRoutes);
+app.use("/api/v1/rank", rankRoutes); // backward compatibility alias
+
+app.get("/metrics", async (req, res) => {
+  res.set('Content-Type', metrics.register.contentType);
+  res.end(await metrics.register.metrics());
+});
 
 // 404 handler
 app.use((req, res) => {
