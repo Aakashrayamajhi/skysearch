@@ -7,7 +7,11 @@
   "scripts": {
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
-    "test": "node --test"
+    "test": "node --test",
+    "test:unit": "node --test test/unit/middlewares.test.js",
+    "test:integration": "node --test test/integration/http.integration.test.js",
+    "test:e2e": "node --test test/e2e/app.e2e.test.js",
+    "test:watch": "node --test --watch"
   },
   "dependencies": {
     "axios": "^1.6.0",
