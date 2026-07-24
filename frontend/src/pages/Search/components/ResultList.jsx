@@ -1,46 +1,36 @@
-import ResultCard from "./ResultCard";
+import ResultCard from './ResultCard';
+import { SearchResultSkeleton } from '../../../components/skeleton/SearchResultSkeleton';
+import { useSearchStore } from '../../../store/searchStore';
 
 export default function ResultList() {
-  const results = [
-    {
-      title:
-        "Quantum Computing for Aerospace: Optimization & Simulation Breakthroughs",
-      description:
-        "NASA and IBM explore quantum algorithms to revolutionize aerodynamic simulations, trajectory optimization, and material science.",
-      url: "https://www.nasa.gov/quantum-research",
-      image:
-        "https://images.unsplash.com/photo-1451187580459-43490279c0fa",
-      source: "NASA",
-      tag: "Research",
-    },
-    {
-      title:
-        "How Quantum Algorithms Are Transforming Fluid Dynamics in Aviation",
-      description:
-        "New hybrid quantum-classical models significantly reduce simulation time for turbulence and airflow analysis.",
-      url: "https://www.ibm.com/quantum/blog/aerospace",
-      image:
-        "https://images.unsplash.com/photo-1508614589041-895b88991e3e",
-      source: "IBM Quantum",
-      tag: "Technology",
-    },
-    {
-      title:
-        "Next-Gen Aircraft Design Powered by Quantum Computing",
-      description:
-        "Boeing and Google Quantum AI collaborate to push limits of structural optimization and energy efficiency.",
-      url: "https://quantumai.google/research",
-      image:
-        "https://images.unsplash.com/photo-1474302770737-173ee21bab63",
-      source: "Google Quantum AI",
-      tag: "Innovation",
-    },
-  ];
+  const { results, loading, error } = useSearchStore();
+
+  if (error) {
+    return (
+      <div className="mt-6 p-8 rounded-2xl border border-red-500/20 bg-red-500/5 text-center">
+        <p className="text-red-400 text-sm">Failed to load results</p>
+        <p className="text-gray-500 text-xs mt-2">{error}</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return <SearchResultSkeleton />;
+  }
+
+  if (!results.length) {
+    return (
+      <div className="mt-6 p-8 rounded-2xl border border-white/5 bg-white/[0.02] text-center">
+        <p className="text-gray-400 text-sm">No results found</p>
+        <p className="text-gray-600 text-xs mt-2">Try adjusting your search or filters</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6 mt-6">
+    <div className="space-y-4 mt-6">
       {results.map((item, index) => (
-        <ResultCard key={index} {...item} />
+        <ResultCard key={item.id || index} {...item} />
       ))}
     </div>
   );
