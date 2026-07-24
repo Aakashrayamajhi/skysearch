@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { search, fetchImageSearch } from '../services/api/search.api';
+import { search, fetchImageSearch, fetchAISummary, fetchAIFollowUp } from '../services/api/search.api';
 import { stripHtml } from '../utils/sanitize';
 
 let searchAbortController = null;
@@ -7,6 +7,11 @@ let searchAbortController = null;
 export const useSearchStore = create((set, get) => ({
   query: '',
   results: [],
+  aiInsight: null,
+  followUpQuestion: '',
+  followUpResponse: null,
+  followUpLoading: false,
+  followUpError: null,
   loading: false,
   error: null,
   page: 1,
@@ -24,6 +29,11 @@ export const useSearchStore = create((set, get) => ({
   setError: (error) => set({ error }),
   setResults: (results) => set({ results }),
   setTotalResults: (totalResults) => set({ totalResults }),
+  setAiInsight: (aiInsight) => set({ aiInsight }),
+  setFollowUpQuestion: (followUpQuestion) => set({ followUpQuestion }),
+  setFollowUpResponse: (followUpResponse) => set({ followUpResponse }),
+  setFollowUpLoading: (followUpLoading) => set({ followUpLoading }),
+  setFollowUpError: (followUpError) => set({ followUpError }),
 
   addRecentSearch: (query) => {
     const trimmed = query.trim();
@@ -41,7 +51,7 @@ export const useSearchStore = create((set, get) => ({
     const searchSize = params.size ?? size;
 
     if (!searchQuery.trim()) {
-      set({ results: [], error: null, totalResults: 0, totalPages: 1 });
+      set({ results: [], error: null, totalResults: 0, totalPages: 1, aiInsight: null });
       return;
     }
 
@@ -51,7 +61,7 @@ export const useSearchStore = create((set, get) => ({
     const controller = new AbortController();
     searchAbortController = controller;
 
-    set({ loading: true, error: null });
+    set({ loading: true, error: null, aiInsight: null });
 
     try {
       const data = await search(
@@ -101,6 +111,10 @@ export const useSearchStore = create((set, get) => ({
         });
 
         get().addRecentSearch(searchQuery);
+
+        if (normalizedResults.length > 0) {
+          get().fetchAISummary(searchQuery, normalizedResults);
+        }
       }
     } catch (err) {
       if (!controller.signal.aborted && !err.isCancel) {
@@ -109,6 +123,38 @@ export const useSearchStore = create((set, get) => ({
           loading: false,
         });
       }
+    }
+  },
+
+  fetchAISummary: async (query, results) => {
+    try {
+      const summary = await fetchAISummary(query, results);
+      if (summary) {
+        set({ aiInsight: { description: summary } });
+      }
+    } catch {
+      // Silently fail AI summary
+    }
+  },
+
+  submitFollowUp: async (question) => {
+    const trimmed = question.trim();
+    if (!trimmed) return;
+
+    const { query, results } = get();
+    if (!query.trim() || results.length === 0) return;
+
+    set({ followUpLoading: true, followUpResponse: null, followUpError: null });
+
+    try {
+      const answer = await fetchAIFollowUp(query, results, trimmed);
+      if (answer) {
+        set({ followUpResponse: answer, followUpLoading: false, followUpError: null });
+      } else {
+        set({ followUpLoading: false, followUpError: 'No answer received' });
+      }
+    } catch (error) {
+      set({ followUpLoading: false, followUpError: error.message || 'Request failed' });
     }
   },
 
@@ -162,6 +208,11 @@ export const useSearchStore = create((set, get) => ({
       totalResults: 0,
       totalPages: 1,
       error: null,
+      aiInsight: null,
+      followUpQuestion: '',
+      followUpResponse: null,
+      followUpLoading: false,
+      followUpError: null,
     }),
 }));
 

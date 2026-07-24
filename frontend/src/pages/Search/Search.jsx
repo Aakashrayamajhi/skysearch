@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Navbar from '../../components/layout/Navbar';
 import Filters from './components/Filters';
@@ -18,30 +18,31 @@ export default function Search() {
     loading,
     totalResults,
     query: storeQuery,
-    results,
+    setFilters,
   } = useSearchStore();
 
   const queryFromUrl = searchParams.get('q') || '';
-  const [inputValue, setInputValue] = useState('');
-  const lastQueryRef = useRef('');
+  const typeFromUrl = searchParams.get('type') || '';
+  const [inputValue, setInputValue] = useState(queryFromUrl);
 
   const trimmedUrlQuery = useMemo(() => queryFromUrl.trim(), [queryFromUrl]);
 
   useEffect(() => {
     if (!trimmedUrlQuery) return;
 
-    const isSameQuery = storeQuery === trimmedUrlQuery && results.length > 0 && !loading;
+    // Sync search bar with URL query when navigating to search results
+    // This is intentional state synchronization between URL and input
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setInputValue(trimmedUrlQuery);
 
-    if (isSameQuery) {
-      return;
+    if (typeFromUrl) {
+      setFilters({ contentType: typeFromUrl });
+    } else {
+      setFilters({});
     }
 
-    if (lastQueryRef.current !== trimmedUrlQuery) {
-      lastQueryRef.current = trimmedUrlQuery;
-      setInputValue(trimmedUrlQuery);
-      performSearch({ query: trimmedUrlQuery, page: 1 });
-    }
-  }, [trimmedUrlQuery, storeQuery, results.length, loading, performSearch]);
+    performSearch({ query: trimmedUrlQuery, page: 1 });
+  }, [trimmedUrlQuery, typeFromUrl, setInputValue, setFilters, performSearch]);
 
   const handlePageChange = (newPage) => {
     setPage(newPage);
@@ -78,7 +79,7 @@ export default function Search() {
                 Showing results for <span className="text-cyan-400">"{trimmedUrlQuery}"</span>
               </p>
             )}
-            <ResultList />
+            <ResultList viewType={typeFromUrl || 'all'} />
             {totalPages > 1 && !loading && (
               <div className="mt-8">
                 <Pagination currentPage={page} totalPages={totalPages} onPageChange={handlePageChange} />

@@ -2,7 +2,7 @@ import ResultCard from './ResultCard';
 import { SearchResultSkeleton } from '../../../components/skeleton/SearchResultSkeleton';
 import { useSearchStore } from '../../../store/searchStore';
 
-export default function ResultList() {
+export default function ResultList({ viewType = 'all' }) {
   const { results, loading, error } = useSearchStore();
 
   if (error) {
@@ -27,10 +27,20 @@ export default function ResultList() {
     );
   }
 
+  if (viewType === 'image') {
+    return (
+      <div className="columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4 mt-6">
+        {results.map((item, index) => (
+          <ResultCard key={item.id || index} {...item} viewType={viewType} />
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 mt-6">
       {results.map((item, index) => (
-        <ResultCard key={item.id || index} {...item} />
+        <ResultCard key={item.id || index} {...item} viewType={viewType} />
       ))}
     </div>
   );

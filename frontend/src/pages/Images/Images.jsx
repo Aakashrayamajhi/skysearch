@@ -7,7 +7,7 @@ import { sanitizeText } from '../../utils/sanitize';
 
 export default function Images() {
   const [searchParams] = useSearchParams();
-  const { results, loading, error, performImageSearch } = useSearchStore();
+  const { results, loading, error, performSearch, setFilters } = useSearchStore();
 
   const queryFromUrl = searchParams.get('q') || '';
 
@@ -17,8 +17,9 @@ export default function Images() {
       useSearchStore.getState().setTotalResults(0);
       return;
     }
-    performImageSearch(queryFromUrl);
-  }, [queryFromUrl, performImageSearch]);
+    setFilters({ contentType: 'image' });
+    performSearch({ query: queryFromUrl, page: 1 });
+  }, [queryFromUrl, performSearch, setFilters]);
 
   return (
     <div className="bg-[#020617] min-h-screen text-white">
@@ -40,14 +41,25 @@ export default function Images() {
           {results.map((img, i) => (
             <div
               key={i}
-              className="break-inside-avoid rounded-xl overflow-hidden bg-white/5 border border-white/5 hover:border-cyan-400/20 transition group"
+              className="break-inside-avoid rounded-xl overflow-hidden bg-white/5 border border-white/5 hover:border-cyan-400/20 transition group cursor-pointer"
+              onClick={() => {
+                if (img.url) {
+                  window.open(img.url, '_blank', 'noopener,noreferrer');
+                }
+              }}
             >
-              <img
-                src={img.url || img.src}
-                alt={sanitizeText(img.title || 'image')}
-                loading="lazy"
-                className="w-full object-cover transition-transform duration-300 group-hover:scale-105"
-              />
+              {img.image ? (
+                <img
+                  src={img.image}
+                  alt={sanitizeText(img.title || 'image')}
+                  loading="lazy"
+                  className="w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                />
+              ) : (
+                <div className="w-full bg-white/5 flex items-center justify-center py-12">
+                  <span className="text-4xl text-gray-600">🖼️</span>
+                </div>
+              )}
               {img.title && (
                 <div className="p-3">
                   <p className="text-xs text-gray-400 truncate">{sanitizeText(img.title)}</p>
@@ -59,6 +71,7 @@ export default function Images() {
         {!loading && results.length === 0 && queryFromUrl && (
           <div className="mt-12 text-center">
             <p className="text-gray-400 text-sm">No images found</p>
+            <p className="text-gray-600 text-xs mt-2">Try a different search term</p>
           </div>
         )}
       </div>

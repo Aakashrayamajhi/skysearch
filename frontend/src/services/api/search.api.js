@@ -32,3 +32,24 @@ export async function fetchImageSearch(query, signal) {
   });
   return response.data;
 }
+
+export async function fetchAISummary(query, results, signal) {
+  const response = await searchApi.post('/ai/summary', {
+    query,
+    results: results.slice(0, 5),
+  }, {
+    signal,
+  });
+  return response.data.summary;
+}
+
+export async function fetchAIFollowUp(query, results, question, signal) {
+  const response = await searchApi.post('/ai/followup', {
+    query,
+    results: results.slice(0, 5),
+    question,
+  }, {
+    signal,
+  });
+  return response.data.answer;
+}

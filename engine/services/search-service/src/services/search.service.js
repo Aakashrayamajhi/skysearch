@@ -94,6 +94,61 @@ function buildCacheKey(query, page, size, filters) {
   return `search:${safeQuery}:${page}:${size}:${filterStr}`;
 }
 
+function detectContentType(url) {
+  if (!url || typeof url !== 'string') return 'web';
+  
+  const lower = url.toLowerCase();
+  
+  if (/youtube\.com\/watch|youtube\.com\/shorts|youtu\.be|vimeo\.com|dailymotion\.com|twitch\.tv|\.mp4(\?|$)|\.webm(\?|$)|\.mov(\?|$)/.test(lower)) {
+    return 'video';
+  }
+  
+  if (/maps\.google\.com|google\.com\/maps|bing\.com\/maps|mapquest\.com|openstreetmap\.org|waze\.com/.test(lower)) {
+    return 'map';
+  }
+  
+  const newsDomains = ['news', 'times', 'post', 'herald', 'chronicle', 'daily', 'gazette', 
+                       'reuters', 'apnews', 'bbc', 'cnn', 'npr', 'nytimes', 'washingtonpost',
+                       'guardian', 'aljazeera', 'bloomberg', 'forbes', 'techcrunch', 'wired',
+                       'theverge', 'arstechnica', 'engadget', 'mashable', 'businessinsider',
+                       'medium.com', 'substack.com', 'wordpress.com', 'blogspot.com'];
+  if (newsDomains.some(domain => lower.includes(domain))) {
+    return 'news';
+  }
+  
+  return 'web';
+}
+
+function detectContentTypeFromContent(url, content) {
+  if (!url || typeof url !== 'string') return 'web';
+  
+  const lower = url.toLowerCase();
+  
+  if (/youtube\.com\/watch|youtube\.com\/shorts|youtu\.be|vimeo\.com|dailymotion\.com|\.mp4|\.webm|\.mov/.test(lower)) {
+    return 'video';
+  }
+  
+  if (/maps\.google\.com|google\.com\/maps|bing\.com\/maps|mapquest/.test(lower)) {
+    return 'map';
+  }
+  
+  if (content && typeof content === 'string') {
+    const imgCount = (content.match(/<img[^>]*>/gi) || []).length;
+    if (imgCount >= 5) {
+      return 'image';
+    }
+  }
+  
+  const newsDomains = ['news', 'times', 'post', 'herald', 'chronicle', 'daily', 'gazette', 
+                       'reuters', 'apnews', 'bbc', 'cnn', 'npr', 'nytimes', 'washingtonpost',
+                       'guardian', 'aljazeera', 'bloomberg', 'forbes', 'techcrunch'];
+  if (newsDomains.some(domain => lower.includes(domain))) {
+    return 'news';
+  }
+  
+  return 'web';
+}
+
 class SearchService {
   constructor() {
     this.queryService = queryService;
@@ -131,6 +186,8 @@ class SearchService {
     const processed = this.queryService.process(validatedQuery);
 
     let rankingResponse;
+    let usedFallback = false;
+
     try {
       rankingResponse = await this.rankingClient.fire({
         query: processed.expanded.join(" "),
@@ -162,6 +219,64 @@ class SearchService {
       total: rankingResponse.totalResults || rankingResponse.totalCandidates || 0,
       results: Array.isArray(rankingResponse.results) ? rankingResponse.results : []
     };
+
+    if (parsedFilters.contentType && formatted.results.length === 0) {
+      try {
+        const fallbackResponse = await this.rankingClient.fire({
+          query: processed.expanded.join(" "),
+          page: pageNum,
+          size: pageSize,
+          filters: {}
+        });
+
+        if (fallbackResponse.results && fallbackResponse.results.length > 0) {
+          usedFallback = true;
+          const contentType = parsedFilters.contentType;
+          let filtered = fallbackResponse.results;
+
+          if (contentType === 'video') {
+            filtered = fallbackResponse.results.filter(r => {
+              if (!r.url) return false;
+              return /youtube\.com\/watch|youtube\.com\/shorts|youtu\.be|vimeo\.com|dailymotion\.com|twitch\.tv|\.mp4|\.webm|\.mov/.test(r.url.toLowerCase());
+            });
+          } else if (contentType === 'news') {
+            filtered = fallbackResponse.results.filter(r => {
+              if (!r.url) return false;
+              const lower = r.url.toLowerCase();
+              return /news|times|post|herald|chronicle|daily|gazette|reuters|apnews|bbc|cnn|npr|nytimes|washingtonpost|guardian|aljazeera|bloomberg|forbes|techcrunch/.test(lower);
+            });
+          } else if (contentType === 'map') {
+            filtered = fallbackResponse.results.filter(r => {
+              if (!r.url) return false;
+              return /maps\.google\.com|google\.com\/maps|bing\.com\/maps|mapquest\.com|openstreetmap/.test(r.url.toLowerCase());
+            });
+          } else if (contentType === 'image') {
+            filtered = fallbackResponse.results.filter(r => {
+              if (!r.url) return false;
+              const lower = r.url.toLowerCase();
+              return /\.jpg(\?|$)|\.jpeg(\?|$)|\.png(\?|$)|\.gif(\?|$)|\.webp(\?|$)|\.svg(\?|$)|\.bmp(\?|$)|unsplash\.com|pexels\.com|pixabay\.com|flickr\.com|imgur\.com|\.image|\.photo|\.gallery/.test(lower);
+            });
+          }
+
+          formatted.results = filtered.length > 0 ? filtered : fallbackResponse.results.slice(0, pageSize);
+          formatted.total = formatted.results.length;
+          formatted.totalResults = formatted.results.length;
+          formatted.page = fallbackResponse.page || pageNum;
+          formatted.size = fallbackResponse.size || pageSize;
+        }
+      } catch (fallbackErr) {
+        logger.warn({ err: fallbackErr, query: validatedQuery }, "Fallback search failed");
+      }
+    }
+
+    if (formatted.results.length > 0) {
+      formatted.results = formatted.results.map(result => {
+        if (!result.contentType) {
+          result.contentType = detectContentTypeFromContent(result.url, result.content);
+        }
+        return result;
+      });
+    }
 
     try {
       await set(cacheKey, formatted, TTL_SECONDS);

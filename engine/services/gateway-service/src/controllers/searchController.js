@@ -5,6 +5,13 @@ const { performSearch } = require("../services/search.service");
 async function handleSearch(req, res, next) {
   try {
     const query = { ...req.query };
+
+    if (query.type && !query.filters) {
+      const filters = { contentType: query.type };
+      delete query.type;
+      query.filters = JSON.stringify(filters);
+    }
+
     const response = await performSearch(query, req.id);
 
     res.setHeader("X-Request-ID", req.id);
@@ -24,16 +31,25 @@ async function handleSearch(req, res, next) {
 
 async function handleImageSearch(req, res, next) {
   try {
-    let existingFilters = {};
-    if (req.query.filters && typeof req.query.filters === "string") {
+    const query = { ...req.query };
+
+    if (query.type && !query.filters) {
+      const filters = { contentType: query.type };
+      delete query.type;
+      query.filters = JSON.stringify(filters);
+    }
+
+    let imageFilters = {};
+    if (query.filters && typeof query.filters === "string") {
       try {
-        existingFilters = JSON.parse(req.query.filters);
+        imageFilters = JSON.parse(query.filters);
       } catch {
-        existingFilters = {};
+        imageFilters = {};
       }
     }
-    const imageFilters = { ...existingFilters, contentType: "image" };
-    const query = { ...req.query, filters: JSON.stringify(imageFilters) };
+    imageFilters.contentType = "image";
+    query.filters = JSON.stringify(imageFilters);
+
     const response = await performSearch(query, req.id);
 
     res.setHeader("X-Request-ID", req.id);

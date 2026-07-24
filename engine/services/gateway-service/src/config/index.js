@@ -11,6 +11,9 @@ module.exports = {
   searchServiceTimeoutMs:
     Number(process.env.SEARCH_SERVICE_TIMEOUT_MS) || 4000,
   apiKey: process.env.API_KEY,
+  aiApiUrl: process.env.AI_API_URL || "https://api.openai.com/v1/chat/completions",
+  aiApiKey: process.env.AI_API_KEY || process.env.API_KEY || "",
+  aiModel: process.env.AI_MODEL || "gpt-4o-mini",
   nodeEnv: process.env.NODE_ENV || "development",
   logLevel: process.env.LOG_LEVEL || "info"
 };

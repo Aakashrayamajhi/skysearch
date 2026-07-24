@@ -14,6 +14,7 @@ const apiKeyAuth = require("./middlewares/apiKeyAuth");
 const rateLimiter = require("./middlewares/rateLimiter");
 const validateSearch = require("./middlewares/validateSearch");
 const { handleSearch, handleImageSearch } = require("./controllers/searchController");
+const { generateAISummary, generateFollowUp } = require("./controllers/aiController");
 const logger = require("./utils/logger");
 
 const app = express();
@@ -26,13 +27,13 @@ app.use(helmet());
 app.use(
   cors({
     origin: corsOrigin,
-    methods: ["GET"],
+    methods: ["GET", "POST"],
     credentials: true
   })
 );
 app.use(compression());
-app.use(express.json({ limit: "1kb" }));
-app.use(express.urlencoded({ extended: true, limit: "1kb" }));
+app.use(express.json({ limit: "10kb" }));
+app.use(express.urlencoded({ extended: true, limit: "10kb" }));
 
 app.use(requestId);
 app.use(loggerMiddleware);
@@ -45,6 +46,9 @@ app.get("/health", (req, res) => {
 
 app.get("/search", validateSearch, handleSearch);
 app.get("/search/images", validateSearch, handleImageSearch);
+
+app.post("/ai/summary", generateAISummary);
+app.post("/ai/followup", generateFollowUp);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Route not found", requestId: req.id });
