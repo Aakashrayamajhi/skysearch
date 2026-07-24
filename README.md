@@ -1,397 +1,450 @@
-# Search Engine System
+# SKYSEARCH
 
-## Overview
+Distributed search engine built on a microservices architecture with AI-assisted insights. SKYSEARCH combines scalable information retrieval, real-time indexing, and modern frontend engineering to deliver fast, relevant search results.
 
-This project implements a scalable, distributed search engine using a microservices-based architecture. The system is designed to handle web crawling, data ingestion, indexing, and query processing at scale, following patterns used in modern search platforms.
+## Table of Contents
 
-The architecture separates responsibilities across independent services, enabling horizontal scalability, fault isolation, and independent deployment.
+- [Project Context](#project-context)
+- [System Design and Architecture](#system-design-and-architecture)
+- [Data Pipeline](#data-pipeline)
+- [Tech Stack](#tech-stack)
+- [Repository Structure](#repository-structure)
+- [Services Breakdown](#services-breakdown)
+- [API Reference](#api-reference)
+- [Ranking and Relevance](#ranking-and-relevance)
+- [Security and Performance](#security-and-performance)
+- [Development Setup](#development-setup)
+- [Docker Deployment](#docker-deployment)
+- [Roadmap](#roadmap)
+- [Contribution Guidelines](#contribution-guidelines)
+- [License](#license)
 
----
+## Project Context
 
-## System Architecture
+SKYSEARCH is a production-oriented distributed search system. It ingests web content, indexes it, and serves ranked results through a unified API. An AI insight layer summarizes search results and enables conversational follow-up, all delivered through a responsive React frontend.
 
-The system is composed of multiple services that communicate through synchronous APIs and asynchronous messaging (Kafka). The overall flow can be divided into three primary pipelines:
+Key characteristics:
 
-1. Crawling Pipeline: Fetch and process web content
-2. Indexing Pipeline: Transform and store searchable data
-3. Query Pipeline: Serve user search requests
+- Microservices decomposition for independent scaling and deployment
+- Event-driven ingestion via Kafka for real-time indexing
+- Full-text search backed by Elasticsearch
+- BM25 ranking with freshness and link-based boost
+- Rate limiting, caching, and request tracing in the gateway tier
+- AI-assisted result summarization and follow-upQ&A
 
----
+## System Design and Architecture
 
-## Project Structure
-
-```
-search-engine/
-│
-├── services/                # Microservices
-├── core/                    # Shared libraries and logic
-├── infra/                   # Infrastructure configuration
-├── data/                    # Local storage (development)
-├── queue/                   # Messaging (Kafka)
-├── cache/                   # Redis configuration
-├── db/                      # Database schemas
-├── scripts/                 # Utility scripts
-├── tests/                   # Testing
-├── configs/                 # Environment configurations
-├── docs/                    # Documentation
-└── README.md
-```
-
----
-
-## Services
-
-### 1. API Gateway
-
-The API Gateway acts as the single entry point for all client requests. It abstracts internal service communication and provides a unified interface.
-
-Responsibilities:
-
-* Route incoming requests to appropriate services
-* Perform authentication and authorization
-* Apply rate limiting and request validation
-* Centralized logging and monitoring
-* Handle retries and failure responses
-
-This layer improves security and simplifies client interaction by hiding internal service complexity.
-
-## Folder Structure
-```
-api-gateway/
-├── src/
-│   ├── routes/
-│   │   └── search.route.js
-│   ├── controllers/
-│   │   └── gateway.controller.js
-│   ├── middlewares/
-│   │   ├── auth.middleware.js
-│   │   ├── rateLimiter.js
-│   │   └── logging.middleware.js
-│   ├── services/
-│   │   └── proxy.service.js   # forward to search-service
-│   ├── clients/
-│   │   └── search.client.js
-│   └── app.js
-├── configs/
-├── Dockerfile
-└── README.md
+SKYSEARCH follows an API-first, event-driven microservices pattern:
 
 ```
-
----
-
-### 2. Search Service
-
-The Search Service is responsible for handling user queries and returning relevant results.
-
-Responsibilities:
-
-* Parse and normalize user queries
-* Execute search queries against the index (ElasticSearch)
-* Apply ranking algorithms such as BM25
-* Integrate caching (Redis) for frequently requested queries
-* Combine and format results before returning to the client
-
-This service is latency-sensitive and optimized for fast read operations.
-
-## Folder structure
-
-```
-search-service/
-├── src/
-│   ├── controllers/
-│   │   └── search.controller.js
-│   ├── services/
-│   │   ├── search.service.js
-│   │   ├── query.service.js
-│   │   └── ranking.service.js
-│   ├── repositories/
-│   │   ├── index.repo.js
-│   │   └── cache.repo.js
-│   ├── clients/
-│   │   ├── elastic.client.js
-│   │   └── redis.client.js
-│   ├── models/
-│   └── app.js
-├── configs/
-└── Dockerfile
-
+Client (Browser)
+    |
+    v
+API Gateway (port 3000)
+    |
+    +---> Search Service (port 3001)
+    |         |
+    |         +---> Redis (cache, rate limiting)
+    |         |
+    |         +---> Ranking Service (port 4000)
+    |                   |
+    |                   +---> Elasticsearch (port 9200)
+    |
+    +---> [other services]
+    
+Async Pipeline:
+    Crawler Service (port 3002)
+        |
+        +---> Kafka (topic: crawl-data)
+                |
+                +---> Indexer Service (port 3003)
+                |         |
+                |         +---> Elasticsearch
+                |
+                +---> Ingestion Service (port 3004)
 ```
 
----
+The architecture separates concerns across independent services:
 
-### 3. Crawler Service
+- **Client tier:** React SPA with routing, state management, and API integration.
+- **Gateway tier:** Single entry point handling auth, validation, rate limiting, and routing to backend services.
+- **Search tier:** Orchestrates query execution, caching, and ranking.
+- **Indexing tier:** Consumes crawled data from Kafka, transforms, and loads into Elasticsearch.
+- **Crawl tier:** Fetches web pages and emits events to Kafka.
 
-The Crawler Service is responsible for discovering and fetching web content.
+This separation allows each tier to scale independently and fail in isolation.
 
-Responsibilities:
+## Data Pipeline
 
-* Crawl web pages starting from seed URLs
-* Respect robots.txt and domain-level rate limits
-* Extract HTML content and metadata
-* Normalize and validate URLs
-* Publish crawled data to Kafka for downstream processing
+### Ingestion path
 
-This service operates asynchronously and is designed for high throughput.
+1. **Crawler** fetches web pages, extracts content, and publishes structured records to the `crawl-data` Kafka topic.
+2. **Ingestion Service** reads from Kafka, validates and normalizes payloads, then republishes to an internal indexing topic.
+3. **Indexer Service** consumes the normalized topic, enriches documents, and indexes them into Elasticsearch.
 
-## Folder Structure
+### Query path
 
-```
-crawler-service/
-├── src/
-│   ├── workers/
-│   │   └── crawler.worker.js
-│   ├── services/
-│   │   ├── crawl.service.js
-│   │   └── url.service.js
-│   ├── queue/
-│   │   └── producer.js
-│   ├── parsers/
-│   │   └── html.parser.js
-│   ├── utils/
-│   │   └── robots.js
-│   └── app.js
-├── configs/
-└── Dockerfile
+1. User submits a query via the frontend.
+2. **API Gateway** validates the request and applies rate limiting.
+3. **Search Service** retrieves candidate documents from **Elasticsearch**.
+4. **Ranking Service** applies BM25 scoring, freshness decay, and link authority to produce a ranked list.
+5. **API Gateway** returns the ranked results to the client.
+6. Frontend renders the results and asynchronously requests an AI summary from the gateway.
 
-```
+## Tech Stack
 
----
+### Frontend
 
-### 4. Indexer Service
+- React 19 with Vite 8
+- Tailwind CSS 4
+- React Router 7
+- Zustand for client state
+- TanStack Query for server state
+- Axios for HTTP communication
 
-The Indexer Service processes raw crawled data and converts it into a searchable format.
+### Backend
 
-Responsibilities:
+- Node.js with Express
+- `dotenv` for configuration management
+- Axios for outbound HTTP
+- Jest-compatible built-in test runner (`node --test`)
 
-* Consume crawl data from Kafka
-* Perform tokenization and text normalization
-* Build and update the inverted index
-* Store processed documents in ElasticSearch
-* Handle indexing strategies such as batching and deduplication
+### Infrastructure and tools
 
-This service bridges raw data and the searchable index.
+- Kafka for event streaming
+- Redis for caching and rate limiting
+- Elasticsearch 8 for inverted indexing and full-text search
+- Docker and Docker Compose for local orchestration
+- Nodemon for development watch mode
 
-## Folder Structure
-
-```
-
-indexer-service/
-├── src/
-│   ├── consumers/
-│   │   └── crawl.consumer.js   
-│   ├── services/
-│   │   ├── index.service.js
-│   │   ├── tokenize.service.js
-│   │   └── normalize.service.js
-│   ├── repositories/
-│   │   └── index.repo.js
-│   ├── clients/
-│   │   └── elastic.client.js
-│   └── app.js
-├── configs/
-└── Dockerfile
+## Repository Structure
 
 ```
+skysearch/
+  frontend/                        # React client application
+    src/
+      components/                  # Reusable UI components
+      pages/                       # Route-level pages (Home, Search, Images)
+      services/api/                # API client layer
+      store/                       # Zustand state stores
+      utils/                       # Shared utilities
+    package.json
 
----
+  engine/                          # Backend services and infrastructure
+    services/
+      crawler-service/             # Web crawler worker
+      ingestion-service/           # Kafka ingestion worker
+      indexer-service/             # Elasticsearch indexing worker
+      search-service/              # Search orchestration and caching
+      ranking-service/             # Document scoring and ranking
+      gateway-service/             # API gateway, auth, and routing
+    infra/
+      docker/                      # Dockerfiles for each service
 
-### 5. Ranking Service
-
-The Ranking Service provides advanced ranking capabilities beyond basic scoring.
-
-Responsibilities:
-
-* Apply advanced scoring algorithms
-* Compute feature-based ranking signals
-* Support machine learning-based ranking models (future extension)
-* Re-rank top results returned by the Search Service
-
-This service is typically used for secondary ranking to improve relevance.
-
-## Folder Structure
-
-```
-ranking-service/
-├── src/
-│   ├── services/
-│   │   ├── ranking.service.js
-│   │   ├── scoring.service.js
-│   │   └── features.service.js
-│   ├── models/
-│   │   └── ranking.model.js
-│   ├── utils/
-│   │   └── math.js
-│   └── app.js
-├── configs/
-└── Dockerfile
-
+  docker-compose.yml               # Infrastructure orchestration
 ```
 
----
+Each backend service is self-contained with its own dependencies and configuration but shares common dependency versions and repository conventions.
 
-### 6. Ingestion Service
+## Services Breakdown
 
-The Ingestion Service handles data processing from various pipelines, including logs and crawl data.
+### crawler-service
 
-Responsibilities:
+- Discovers and fetches web pages.
+- Normalizes raw HTML into structured content.
+- Publishes crawl records to Kafka (`crawl-data` topic).
+- Runs as a long-lived worker.
 
-* Consume events from Kafka (crawl data, user logs)
-* Validate and clean incoming data
-* Store structured data into databases
-* Enable analytics and monitoring use cases
+### ingestion-service
 
-This service is essential for maintaining data quality and supporting analytics workflows.
+- Consumes raw crawl events from Kafka.
+- Validates schema and sanitizes payloads.
+- Republishes normalized documents for indexing.
+- Acts as a backpressure and validation layer between ingestion and indexing.
 
-## Folder structure
+### indexer-service
 
-```
-ingestion-service/
-├── src/
-│   ├── consumers/
-│   │   ├── crawl.consumer.js
-│   │   └── log.consumer.js
-│   ├── services/
-│   │   ├── process.service.js
-│   │   └── validate.service.js
-│   ├── repositories/
-│   │   └── storage.repo.js
-│   └── app.js
-├── configs/
-└── Dockerfile
+- Consumes normalized documents from Kafka.
+- Builds or updates Elasticsearch documents.
+- Handles mapping and index lifecycle.
+- Commits documents in batches for throughput.
 
-```
+### ranking-service
 
----
+- Accepts candidate document sets from search-service.
+- Computes relevance scores using BM25 term frequency and inverse document frequency.
+- Applies freshness decay to favor recent content.
+- Applies link-based authority boost where link graph data is available.
+- Sorts and returns ranked results with scores.
 
-## Core Modules
+### search-service
 
-The `core/` directory contains reusable logic shared across services.
+- Handles query parsing, validation, and parameter normalization.
+- Queries Elasticsearch for candidate documents.
+- Integrates with Redis for query result caching.
+- Coordinates with ranking-service for post-retrieval scoring.
+- Records analytics and request metadata.
+- Manages pagination and result size constraints.
 
-* Tokenizer: Splits text into tokens for indexing
-* Parser: Extracts meaningful content from HTML
-* Index: Implements inverted index logic
-* Ranking: Provides ranking algorithms such as BM25
-* Utils: Logging, helpers, and shared utilities
+### gateway-service
 
-This separation avoids duplication and ensures consistency.
+- Single entry point for client traffic.
+- Applies request ID tracing for observability.
+- Enforces rate limiting per client.
+- Validates input and sanitizes outputs.
+- Proxies requests to downstream services.
+- Applies CORS and security headers.
+- Exposes AI summary and AI follow-up endpoints.
 
----
+## API Reference
 
-## Infrastructure
-
-The `infra/` directory contains deployment and infrastructure configurations.
-
-* Docker: Containerization for all services
-* Kubernetes: Orchestration and scaling
-* Terraform: Infrastructure as code
-* Nginx: Load balancing and reverse proxy
-
-These tools enable production-grade deployment and scalability.
-
----
-
-## Data Storage
-
-* ElasticSearch: Stores indexed documents and supports fast search queries
-* Redis: Caches frequently accessed data and query results
-* SQL Databases: Store metadata and logs
-* Local Data (data/): Used for development and testing
-
----
-
-## Messaging System
-
-Kafka is used for asynchronous communication between services.
-
-Key use cases:
-
-* Crawler → Indexer communication
-* Logging and analytics pipelines
-* Decoupling services for better scalability
-
----
-
-## Data Flow
-
-### Crawling Pipeline
-
-Crawler Service → Kafka → Indexer Service → ElasticSearch
-
-### Query Pipeline
-
-User → API Gateway → Search Service → Ranking Service → Response
-
-### Logging Pipeline
-
-User Actions → Kafka → Ingestion Service → Database
-
----
-
-## Setup Instructions
-
-### Clone Repository
+### Health
 
 ```
-git clone https://github.com/your-username/search-engine.git
-cd search-engine
+GET /health
+Response: 200 OK
+{
+  "status": "ok"
+}
 ```
 
-### Run with Docker
+### Search
 
 ```
-docker-compose up --build
+GET /search
+Query Parameters:
+  q       (string, required)  Search query
+  page    (integer, optional) Page number, default 1
+  size    (integer, optional) Results per page, default 10, max 50
+  filters (object, optional)  Key-value filters
+
+Example:
+GET /search?q=why&page=1&size=10
 ```
 
-### Run Individual Service
+Sample response:
+
+```json
+{
+  "total": 120,
+  "page": 1,
+  "size": 10,
+  "totalPages": 12,
+  "results": [
+    {
+      "id": "https://example.com/article",
+      "title": "Article Title",
+      "description": "Snippet of the article content...",
+      "url": "https://example.com/article",
+      "source": "example",
+      "score": 1.42
+    }
+  ]
+}
+```
+
+### AI Summary
 
 ```
-cd services/api-gateway
+POST /ai/summary
+Request body:
+{
+  "query": "why",
+  "results": [
+    {
+      "title": "stackoverflow.com",
+      "description": "serving a file from a service worker...",
+      "url": "https://stackoverflow.com"
+    }
+  ]
+}
+
+Response:
+{
+  "summary": "A concise summary of the top results."
+}
+```
+
+The AI summary endpoint accepts up to five results and returns a two to three sentence summary grounded in the provided content. If the AI provider is unavailable, the gateway returns a fallback message.
+
+## Ranking and Relevance
+
+The ranking pipeline computes a final score for each candidate document using multiple signals:
+
+- **BM25 score:** Term frequency and inverse document frequency over the indexed corpus. This is the primary relevance signal.
+- **Freshness boost:** Newer documents receive a higher score relative to older content. The decay function is configurable and can be tuned to the content vertical.
+- **Link authority:** Where inbound link data is indexed, documents with stronger inbound references receive an additional boost.
+- **Field weighting:** Title and heading matches are weighted higher than body text matches.
+
+The ranking service returns results sorted by descending final score.
+
+## Security and Performance
+
+### Security
+
+- All internal requests are authenticated via API key middleware in the gateway.
+- Express-level request validation rejects malformed payloads before they reach business logic.
+- CORS is configured to allow only known frontend origins.
+- Helmet is enabled for standard HTTP security headers.
+
+### Performance
+
+- Redis cache stores hot query results with a configurable TTL to reduce Elasticsearch load.
+- Rate limiting is enforced per client window to protect downstream services.
+- Request IDs are propagated through the gateway for distributed tracing.
+- Elasticsearch search timeouts and retries are configured per service to fail fast under pressure.
+- Request compression is enabled at the gateway tier.
+
+## Development Setup
+
+### Prerequisites
+
+- Node.js 18 or later
+- Docker and Docker Compose
+- Redis 7
+- Elasticsearch 8
+- Kafka 7
+
+### Installation
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/your-org/skysearch.git
+cd skysearch
+```
+
+2. Install frontend dependencies:
+
+```bash
+cd frontend
 npm install
+```
+
+3. Install backend service dependencies. Each service under `engine/services/<service-name>` has its own `package.json`. Install dependencies for each service:
+
+```bash
+cd engine/services/gateway-service && npm install
+cd engine/services/search-service && npm install
+cd engine/services/ranking-service && npm install
+cd engine/services/crawler-service && npm install
+cd engine/services/indexer-service && npm install
+cd engine/services/ingestion-service && npm install
+```
+
+### Environment variables
+
+Copy and edit `.env` files in each service directory. Key variables include:
+
+- `PORT`: Service port
+- `CORS_ORIGIN`: Allowed origins
+- `REDIS_URL`: Redis connection string
+- `ELASTIC_NODE`: Elasticsearch HTTP endpoint
+- `KAFKA_BROKERS`: Kafka bootstrap servers
+- `SEARCH_SERVICE_URL`: Upstream search service URL (gateway)
+- `RANKING_SERVICE_URL`: Upstream ranking service URL (search)
+- `RATE_LIMIT_WINDOW_MS` and `RATE_LIMIT_MAX_REQUESTS`: Gateway throttling parameters
+- `API_KEY`: Shared API key for inter-service auth
+
+### Running services
+
+Development mode (with auto-reload):
+
+```bash
+# Terminal 1 - Gateway
+cd engine/services/gateway-service && npm run dev
+
+# Terminal 2 - Search service
+cd engine/services/search-service && npm run dev
+
+# Terminal 3 - Ranking service
+cd engine/services/ranking-service && npm run dev
+
+# Terminal 4 - Crawler service
+cd engine/services/crawler-service && npm run dev
+
+# Terminal 5 - Indexer service
+cd engine/services/indexer-service && npm run dev
+
+# Terminal 6 - Ingestion service
+cd engine/services/ingestion-service && npm run dev
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm run dev
+```
+
+Production mode:
+
+```bash
+cd engine/services/<service-name>
 npm start
 ```
 
----
+## Docker Deployment
 
-## Testing
+Start the full stack with Docker Compose. This command launches Kafka, Redis, Elasticsearch, and the backend services with their preconfigured networking, environment variables, and health dependencies.
 
-```
-npm run test
-```
-
-Includes:
-
-* Unit tests
-* Integration tests
-
----
-
-## Scripts
-
-```
-./scripts/start.sh       # Start system
-python crawl_seed.py     # Seed URLs for crawler
-python reindex.py        # Rebuild search index
+```bash
+docker compose up --build
 ```
 
----
+Individual service access after startup:
 
-## Future Enhancements
+- Frontend: `http://localhost:5173`
+- API Gateway: `http://localhost:3000`
+- Search Service: `http://localhost:3001`
+- Ranking Service: `http://localhost:4000`
+- Crawler Service: `http://localhost:3002`
+- Indexer Service: `http://localhost:3003`
+- Ingestion Service: `http://localhost:3004`
+- Elasticsearch: `http://localhost:9200`
+- Redis: `localhost:6379`
+- Kafka: `localhost:9092`
 
-* Query autocomplete and spell correction
-* Personalized search results
-* Learning-to-rank models
-* Distributed indexing with sharding
-* Real-time analytics dashboard
+Shutdown:
 
----
+```bash
+docker compose down
+```
 
-## Conclusion
+Volumes persist between restarts for Elasticsearch and Kafka. To reset state, add `-v` to the down command.
 
-This project demonstrates a production-oriented search engine architecture using modern distributed system principles. It is designed for scalability, extensibility, and real-world applicability.
+## Roadmap
 
----
+- Query parser with field-specific search (inurl, intitle, site)
+- Advanced filters by content type, date range, and language
+- ML-based ranking models (learning-to-rank) alongside BM25
+- Personalized result ranking based on user history
+- Query suggestions and autocomplete
+- Image and video search integration
+- Distributed tracing integration (OpenTelemetry)
+- Horizontal scaling with Kubernetes manifests
+
+## Contribution Guidelines
+
+Contributions are accepted through pull requests.
+
+### Code standards
+
+- Follow the existing service structure and naming conventions.
+- Keep services independently deployable.
+- Add or update unit and integration tests for changed behavior.
+- Use descriptive commit messages in the present tense.
+
+### Pull request checklist
+
+- Ensure tests pass in the modified service.
+- Update this README if the public API or deployment steps change.
+- Confirm Docker Compose still starts cleanly.
+
+### Reporting issues
+
+Use the issue tracker to report bugs or propose features. Include reproduction steps, service logs, and environment details.
 
 ## License
 
-MIT License
+SKYSEARCH is released under the MIT License. See the LICENSE file in the root of the repository for the full text.
