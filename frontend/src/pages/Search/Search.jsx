@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Navbar from '../../components/layout/Navbar';
 import Filters from './components/Filters';
@@ -10,37 +10,42 @@ import { useSearchStore } from '../../store/searchStore';
 
 export default function Search() {
   const [searchParams] = useSearchParams();
-  const { page, totalPages, setPage, performSearch, loading, totalResults, query: storeQuery, results } = useSearchStore();
-  const hasSearchedRef = useRef(false);
-  const lastQueryRef = useRef('');
-  const [inputValue, setInputValue] = useState('');
+  const {
+    page,
+    totalPages,
+    setPage,
+    performSearch,
+    loading,
+    totalResults,
+    query: storeQuery,
+    results,
+  } = useSearchStore();
 
   const queryFromUrl = searchParams.get('q') || '';
+  const [inputValue, setInputValue] = useState('');
+  const lastQueryRef = useRef('');
+
+  const trimmedUrlQuery = useMemo(() => queryFromUrl.trim(), [queryFromUrl]);
 
   useEffect(() => {
-    if (!queryFromUrl) return;
+    if (!trimmedUrlQuery) return;
 
-    const trimmed = queryFromUrl.trim();
-    const isSameQuery = storeQuery === trimmed && results.length > 0 && !loading;
+    const isSameQuery = storeQuery === trimmedUrlQuery && results.length > 0 && !loading;
 
     if (isSameQuery) {
       return;
     }
 
-    if (lastQueryRef.current !== trimmed) {
-      lastQueryRef.current = trimmed;
-      setInputValue(trimmed);
+    if (lastQueryRef.current !== trimmedUrlQuery) {
+      lastQueryRef.current = trimmedUrlQuery;
+      setInputValue(trimmedUrlQuery);
+      performSearch({ query: trimmedUrlQuery, page: 1 });
     }
-
-    if (!hasSearchedRef.current) {
-      hasSearchedRef.current = true;
-      performSearch({ query: trimmed, page: 1 });
-    }
-  }, [queryFromUrl, storeQuery, results.length, loading, performSearch]);
+  }, [trimmedUrlQuery, storeQuery, results.length, loading, performSearch]);
 
   const handlePageChange = (newPage) => {
     setPage(newPage);
-    performSearch({ query: queryFromUrl || storeQuery, page: newPage });
+    performSearch({ query: trimmedUrlQuery || storeQuery, page: newPage });
   };
 
   return (
@@ -60,7 +65,6 @@ export default function Search() {
               <span>
                 {loading ? 'Searching...' : `About ${totalResults.toLocaleString()} results`}
               </span>
-              <button className="hover:text-cyan-400 transition">Sort: Relevance</button>
             </div>
           </div>
         </div>
@@ -69,9 +73,9 @@ export default function Search() {
       <div className="max-w-7xl mx-auto px-6 mt-6">
         <div className="grid grid-cols-12 gap-8">
           <div className="col-span-12 lg:col-span-8">
-            {queryFromUrl && (
+            {trimmedUrlQuery && (
               <p className="text-xs text-gray-500 mb-4">
-                Showing results for <span className="text-cyan-400">"{queryFromUrl}"</span>
+                Showing results for <span className="text-cyan-400">"{trimmedUrlQuery}"</span>
               </p>
             )}
             <ResultList />
