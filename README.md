@@ -5,7 +5,7 @@ Distributed search engine built on a microservices architecture with AI-assisted
 ## Table of Contents
 
 - [Project Context](#project-context)
-- [System Design and Architecture](#system-design-and-architecture)
+- [System Design at Scale](#system-design-at-scale)
 - [Data Pipeline](#data-pipeline)
 - [Tech Stack](#tech-stack)
 - [Repository Structure](#repository-structure)
@@ -30,49 +30,133 @@ Key characteristics:
 - Full-text search backed by Elasticsearch
 - BM25 ranking with freshness and link-based boost
 - Rate limiting, caching, and request tracing in the gateway tier
-- AI-assisted result summarization and follow-upQ&A
+- AI-assisted result summarization and follow-up Q&A
 
-## System Design and Architecture
+## System Design at Scale
 
-SKYSEARCH follows an API-first, event-driven microservices pattern:
+The following diagram represents the production-grade deployment topology required to serve billions of users. The system is organized into distinct zones: user access, edge protection, application tier, data tier, message bus, async worker tier, observability, and geo-redundancy.
 
+```mermaid
+graph TB
+    Client["<img src='https://cdn.jsdelivr.net/npm/@mdi/svg@7.2.96/svg/desktop-classic.svg' width='24' height='24'/> Global Users"]
+    CDN["<img src='https://cdn.jsdelivr.net/npm/@mdi/svg@7.2.96/svg/cdn.svg' width='24' height='24'/> Edge CDN / CloudFront"]
+    WAF["<img src='https://cdn.jsdelivr.net/npm/@mdi/svg@7.2.96/svg/shield-half-full.svg' width='24' height='24'/> DDoS + WAF"]
+    GLB["<img src='https://cdn.jsdelivr.net/npm/@mdi/svg@7.2.96/svg/swap-horizontal-bold.svg' width='24' height='24'/> Global Load Balancer<br/>Anycast DNS + Geo Routing"]
+
+    subgraph "Region: US-East-1 (Primary)"
+        ALB["Application Load Balancer<br/>(Auto Scaling Group)"]
+
+        subgraph "Container / Orchestration Tier"
+            GW["API Gateway<br/>5 replicas<br/>port 3000"]
+            SS["Search Service<br/>15 replicas<br/>port 3001"]
+            RS["Ranking Service<br/>8 replicas<br/>port 4000"]
+        end
+
+        subgraph "Data Tier"
+            RC["Redis Cluster<br/>2 shards + replicas"]
+            ESC["Elasticsearch Cluster<br/>3 master + 5 data + 2 ml"]
+        end
+
+        subgraph "Message Broker Tier"
+            KFK["Kafka Cluster<br/>3 brokers<br/>topic: crawl-data"]
+        end
+
+        subgraph "Async Worker Tier"
+            CRW["Crawler Service<br/>20 instances<br/>port 3002"]
+            IXR["Indexer Service<br/>10 instances<br/>port 3003"]
+            ING["Ingestion Service<br/>10 instances<br/>port 3004"]
+        end
+    end
+
+    subgraph "Region: EU-West-1 (Read Replica)"
+        ESC2["Elasticsearch<br/>Cross-cluster replica<br/>read-only traffic"]
+    end
+
+    subgraph "Observability & Control Plane"
+        MON["Prometheus + Grafana"]
+        LOG["Distributed Logging<br/>(ELK / Loki)"]
+        TRACE["OpenTelemetry / Jaeger"]
+        SEC["Secrets Manager<br/>(HashiCorp Vault)"]
+    end
+
+    Client --> CDN
+    CDN --> WAF
+    WAF --> GLB
+    GLB --> ALB
+    ALB --> GW
+    GW --> SS
+    SS --> RC
+    SS --> RS
+    RS --> ESC
+    CRW --> KFK
+    KFK --> IXR
+    IXR --> ING
+    ING --> ESC
+    ING -.-> CRW
+
+    ESC <-- Cross-cluster replication --> ESC2
+
+    GW -.-> TRACE
+    SS -.-> TRACE
+    RS -.-> TRACE
+    CRW -.-> LOG
+    IXR -.-> LOG
+    ING -.-> LOG
+
+    style Client fill:#0B0F19,stroke:#333,stroke-width:2px,color:#fff
+    style CDN fill:#0B0F19,stroke:#eab308,stroke-width:2px,color:#fff
+    style WAF fill:#0B0F19,stroke:#ef4444,stroke-width:2px,color:#fff
+    style GLB fill:#0B0F19,stroke:#3b82f6,stroke-width:2px,color:#fff
+    style ALB fill:#0B0F19,stroke:#3b82f6,stroke-width:2px,color:#fff
+
+    style GW fill:#0B0F19,stroke:#22c55e,stroke-width:1.5px,color:#fff
+    style SS fill:#0B0F19,stroke:#22c55e,stroke-width:1.5px,color:#fff
+    style RS fill:#0B0F19,stroke:#22c55e,stroke-width:1.5px,color:#fff
+
+    style RC fill:#0B0F19,stroke:#a855f7,stroke-width:1.5px,color:#fff
+    style ESC fill:#0B0F19,stroke:#a855f7,stroke-width:1.5px,color:#fff
+    style ESC2 fill:#0B0F19,stroke:#a855f7,stroke-width:1.5px,color:#fff,stroke-dasharray: 5 5
+
+    style KFK fill:#0B0F19,stroke:#f97316,stroke-width:1.5px,color:#fff
+
+    style CRW fill:#0B0F19,stroke:#ec4899,stroke-width:1.5px,color:#fff
+    style IXR fill:#0B0F19,stroke:#ec4899,stroke-width:1.5px,color:#fff
+    style ING fill:#0B0F19,stroke:#ec4899,stroke-width:1.5px,color:#fff
+
+    style MON fill:#0B0F19,stroke:#64748b,stroke-width:1px,color:#fff
+    style LOG fill:#0B0F19,stroke:#64748b,stroke-width:1px,color:#fff
+    style TRACE fill:#0B0F19,stroke:#64748b,stroke-width:1px,color:#fff
+    style SEC fill:#0B0F19,stroke:#64748b,stroke-width:1px,color:#fff
 ```
-Client (Browser)
-    |
-    v
-API Gateway (port 3000)
-    |
-    +---> Search Service (port 3001)
-    |         |
-    |         +---> Redis (cache, rate limiting)
-    |         |
-    |         +---> Ranking Service (port 4000)
-    |                   |
-    |                   +---> Elasticsearch (port 9200)
-    |
-    +---> [other services]
-    
-Async Pipeline:
-    Crawler Service (port 3002)
-        |
-        +---> Kafka (topic: crawl-data)
-                |
-                +---> Indexer Service (port 3003)
-                |         |
-                |         +---> Elasticsearch
-                |
-                +---> Ingestion Service (port 3004)
-```
 
-The architecture separates concerns across independent services:
+### User Flow
 
-- **Client tier:** React SPA with routing, state management, and API integration.
-- **Gateway tier:** Single entry point handling auth, validation, rate limiting, and routing to backend services.
-- **Search tier:** Orchestrates query execution, caching, and ranking.
-- **Indexing tier:** Consumes crawled data from Kafka, transforms, and loads into Elasticsearch.
-- **Crawl tier:** Fetches web pages and emits events to Kafka.
+1. Request enters via CDN and passes through WAF and DDoS protection.
+2. Global Load Balancer routes traffic to the nearest healthy region using Anycast DNS.
+3. Application Load Balancer distributes requests across API Gateway replicas.
+4. API Gateway applies rate limiting, auth, and request tracing, then proxies to Search Service.
+5. Search Service checks Redis for cached results; on miss, it orchestrates a ranking pipeline.
+6. Ranking Service queries Elasticsearch, computes BM25 + freshness + link boost, and returns ranked documents.
+7. Search Service caches the result in Redis, emits analytics to Kafka, and returns the response.
+8. Frontend renders the results and asynchronously requests an AI summary from the gateway.
 
-This separation allows each tier to scale independently and fail in isolation.
+### Deployment Considerations for Billions of Users
+
+- **Regions:** Deploy to at least 3 geo-distributed regions (e.g., us-east-1, eu-west-1, ap-southeast-1) with Active-Active or Active-Passive failover.
+- **Frontend:** Host static assets on a multi-region CDN (CloudFront / Cloudflare) with edge caching for HTML shells and static JS bundles.
+- **Gateway:** Run API Gateway behind an ALB with auto-scaling policies on CPU, network, and request latency.
+- **Search Service:** Partition by query type or query hash; use consistent hashing to route queries to esoteric shards when scaling beyond a single cluster.
+- **Elasticsearch:** Use a dedicated master-eligible node set, hot-warm architecture, and Cross-Cluster Replication (CCR) for DR.
+- **Kafka:** Run a multi-replica cluster with rack-aware producer configuration and ISR-based durability guarantees.
+- **Redis:** Use Redis Cluster with at least 3 shards, each with 1 replica, and enable cluster mode for horizontal scaling.
+
+### Failure Domains
+
+- Failure of a single Redis shard degrades cache hit rate but does not block search.
+- Elasticsearch node failures are handled by replica shard promotion within seconds.
+- Crawler and indexer workers are stateless; any instance can fail and be replaced without coordination.
+- Kafka ensures at-least-once delivery; indexer is idempotent by document ID.
+- The gateway tier is fully redundant; losing any replica causes zero downtime because the ALB redistributes traffic.
 
 ## Data Pipeline
 
@@ -415,7 +499,7 @@ Volumes persist between restarts for Elasticsearch and Kafka. To reset state, ad
 
 ## Roadmap
 
-- Query parser with field-specific search (inurl, intitle, site)
+- Query parser with field-specific search (`inurl`, `intitle`, `site`)
 - Advanced filters by content type, date range, and language
 - ML-based ranking models (learning-to-rank) alongside BM25
 - Personalized result ranking based on user history
@@ -423,6 +507,18 @@ Volumes persist between restarts for Elasticsearch and Kafka. To reset state, ad
 - Image and video search integration
 - Distributed tracing integration (OpenTelemetry)
 - Horizontal scaling with Kubernetes manifests
+
+## Production Topology Note
+
+For traffic patterns in the billions of queries per month range, the canonical deployment adds:
+
+- A managed API gateway (AWS API Gateway / Cloudflare Workers) in front of the compute-tier gateways to absorb static caching and edge-side personalization.
+- A dedicated VPC peering mesh between services with security groups and private DNS.
+- A hot-warm Elasticsearch cluster with ILM policies, force-merge schedules, and dedicated coordinating nodes.
+- A Kafka cluster with rack-aware producer acks, increased replica factor, and monitoring for under-replicated partitions.
+- A read replica domain for ranking reads, plus a separate Analytics Kafka topic consumed by external BI tools.
+
+The Mermaid source for this architecture is available at [`docs/system-design.mmd`](docs/system-design.mmd).
 
 ## Contribution Guidelines
 

@@ -1,0 +1,90 @@
+graph TB
+    Client["<img src='https://cdn.jsdelivr.net/npm/@mdi/svg@7.2.96/svg/desktop-classic.svg' width='24' height='24'/> Global Users"]
+    CDN["<img src='https://cdn.jsdelivr.net/npm/@mdi/svg@7.2.96/svg/cdn.svg' width='24' height='24'/> Edge CDN / CloudFront"]
+    WAF["<img src='https://cdn.jsdelivr.net/npm/@mdi/svg@7.2.96/svg/shield-half-full.svg' width='24' height='24'/> DDoS + WAF + DDoS Protection"]
+    GLB["<img src='https://cdn.jsdelivr.net/npm/@mdi/svg@7.2.96/svg/swap-horizontal-bold.svg' width='24' height='24'/> Global Load Balancer<br/>Anycast DNS + Geo Routing"]
+
+    subgraph "Region: US-East-1 (Primary)"
+        ALB["Application Load Balancer<br/>(Auto Scaling Group)"]
+
+        subgraph "Container / Orchestration Tier"
+            GW["API Gateway<br/>5 replicas<br/>port 3000"]
+            SS["Search Service<br/>15 replicas<br/>port 3001"]
+            RS["Ranking Service<br/>8 replicas<br/>port 4000"]
+        end
+
+        subgraph "Data Tier"
+            RC["Redis Cluster<br/>2 shards + replicas"]
+            ESC["Elasticsearch<br/>3 master + 5 data + 2 ml"]
+        end
+
+        subgraph "Message Broker Tier"
+            KFK["Kafka Cluster<br/>3 brokers<br/>topic: crawl-data"]
+        end
+
+        subgraph "Async Worker Tier"
+            CRW["Crawler Service<br/>20 instances<br/>port 3002"]
+            IXR["Indexer Service<br/>10 instances<br/>port 3003"]
+            ING["Ingestion Service<br/>10 instances<br/>port 3004"]
+        end
+    end
+
+    subgraph "Region: EU-West-1 (Read Replica)"
+        ESC2["Elasticsearch<br/>Cross-cluster replica<br/>read-only traffic"]
+    end
+
+    subgraph "Observability & Control Plane"
+        MON["Prometheus + Grafana"]
+        LOG["Distributed Logging<br/>(ELK / Loki)"]
+        TRACE["OpenTelemetry / Jaeger"]
+        SEC["Secrets Manager<br/>(HashiCorp Vault)"]
+    end
+
+    Client --> CDN
+    CDN --> WAF
+    WAF --> GLB
+    GLB --> ALB
+    ALB --> GW
+    GW --> SS
+    SS --> RC
+    SS --> RS
+    RS --> ESC
+    CRW --> KFK
+    KFK --> IXR
+    IXR --> ING
+    ING --> ESC
+    ING -.-> CRW
+
+    ESC <-- Cross-cluster replication --> ESC2
+
+    GW -.-> TRACE
+    SS -.-> TRACE
+    RS -.-> TRACE
+    CRW -.-> LOG
+    IXR -.-> LOG
+    ING -.-> LOG
+
+    style Client fill:#0B0F19,stroke:#333,stroke-width:2px,color:#fff
+    style CDN fill:#0B0F19,stroke:#eab308,stroke-width:2px,color:#fff
+    style WAF fill:#0B0F19,stroke:#ef4444,stroke-width:2px,color:#fff
+    style GLB fill:#0B0F19,stroke:#3b82f6,stroke-width:2px,color:#fff
+    style ALB fill:#0B0F19,stroke:#3b82f6,stroke-width:2px,color:#fff
+
+    style GW fill:#0B0F19,stroke:#22c55e,stroke-width:1.5px,color:#fff
+    style SS fill:#0B0F19,stroke:#22c55e,stroke-width:1.5px,color:#fff
+    style RS fill:#0B0F19,stroke:#22c55e,stroke-width:1.5px,color:#fff
+
+    style RC fill:#0B0F19,stroke:#a855f7,stroke-width:1.5px,color:#fff
+    style ESC fill:#0B0F19,stroke:#a855f7,stroke-width:1.5px,color:#fff
+    style ESC2 fill:#0B0F19,stroke:#a855f7,stroke-width:1.5px,color:#fff,stroke-dasharray: 5 5
+
+    style KFK fill:#0B0F19,stroke:#f97316,stroke-width:1.5px,color:#fff
+
+    style CRW fill:#0B0F19,stroke:#ec4899,stroke-width:1.5px,color:#fff
+    style IXR fill:#0B0F19,stroke:#ec4899,stroke-width:1.5px,color:#fff
+    style ING fill:#0B0F19,stroke:#ec4899,stroke-width:1.5px,color:#fff
+
+    style MON fill:#0B0F19,stroke:#64748b,stroke-width:1px,color:#fff
+    style LOG fill:#0B0F19,stroke:#64748b,stroke-width:1px,color:#fff
+    style TRACE fill:#0B0F19,stroke:#64748b,stroke-width:1px,color:#fff
+    style SEC fill:#0B0F19,stroke:#64748b,stroke-width:1px,color:#fff
