@@ -1,20 +1,24 @@
 import { Search, Mic, Camera } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-export default function SearchBar({ value, onChange, onSearch }) {
+export default function SearchBar({ value, onChange }) {
   const navigate = useNavigate();
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      onSearch?.();
-      navigate(`/search?q=${encodeURIComponent(value)}`);
+      const q = value.trim();
+      if (q) {
+        navigate(`/search?q=${encodeURIComponent(q)}`);
+      }
     }
   };
 
   const handleClick = () => {
-    onSearch?.();
-    navigate(`/search?q=${encodeURIComponent(value)}`);
+    const q = value.trim();
+    if (q) {
+      navigate(`/search?q=${encodeURIComponent(q)}`);
+    }
   };
 
   return (

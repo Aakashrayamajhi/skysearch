@@ -25,9 +25,9 @@ export async function search(queryParams, signal) {
   return response.data;
 }
 
-export async function fetchImageSearch(queryParams, signal) {
+export async function fetchImageSearch(query, signal) {
   const response = await searchApi.get('/search/images', {
-    params: queryParams,
+    params: { q: query },
     signal,
   });
   return response.data;

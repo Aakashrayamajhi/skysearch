@@ -14,7 +14,7 @@ function searchClient(queryParams, requestId, maxRetries = 1) {
 
   async function attemptRequest() {
     try {
-      const response = await client.get("/", {
+      const response = await client.get(config.searchServicePath, {
         params: queryParams,
         headers: requestId ? { "X-Request-ID": requestId } : undefined,
       });

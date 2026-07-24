@@ -4,13 +4,22 @@ import { useSearch } from "../../../hooks/useSearch";
 
 export default function HeroSearch() {
   const navigate = useNavigate();
-  const { inputValue, setInputValue, handleSearch } = useSearch();
+  const { inputValue, setInputValue } = useSearch();
 
   const onKeyDown = (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      handleSearch();
-      navigate("/search");
+      const q = inputValue.trim();
+      if (q) {
+        navigate(`/search?q=${encodeURIComponent(q)}`);
+      }
+    }
+  };
+
+  const onSearchClick = () => {
+    const q = inputValue.trim();
+    if (q) {
+      navigate(`/search?q=${encodeURIComponent(q)}`);
     }
   };
 
@@ -36,10 +45,7 @@ export default function HeroSearch() {
           <Mic className="w-5 h-5 text-gray-400 cursor-pointer hover:text-cyan-400 transition" />
           <Camera className="w-5 h-5 text-gray-400 cursor-pointer ml-3 hover:text-cyan-400 transition" />
           <button
-            onClick={() => {
-              handleSearch();
-              navigate("/search");
-            }}
+            onClick={onSearchClick}
             className="ml-4 p-2 rounded-full bg-cyan-500/20 hover:bg-cyan-500/40 transition"
           >
             <Search className="w-4 h-4 text-cyan-300" />
@@ -52,11 +58,7 @@ export default function HeroSearch() {
           (item, i) => (
             <span
               key={i}
-              onClick={() => {
-                setInputValue(item);
-                handleSearch();
-                navigate("/search");
-              }}
+              onClick={() => navigate(`/search?q=${encodeURIComponent(item)}`)}
               className="px-4 py-2 bg-white/5 border border-white/10 rounded-full text-sm text-gray-300 hover:bg-white/10 cursor-pointer transition"
             >
               {item}

@@ -23,5 +23,141 @@ services:
     volumes:
       - elasticsearch-data:/usr/share/elasticsearch/data
 
+  gateway-service:
+    build:
+      context: ./engine/services/gateway-service
+      dockerfile: Dockerfile
+    container_name: gateway-service
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - CORS_ORIGIN=http://localhost:3000
+      - SEARCH_SERVICE_URL=http://search-service:3001
+      - SEARCH_SERVICE_PATH=/search
+      - SEARCH_SERVICE_TIMEOUT_MS=4000
+      - RATE_LIMIT_WINDOW_MS=60000
+      - RATE_LIMIT_MAX_REQUESTS=100
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+    depends_on:
+      - search-service
+
+  search-service:
+    build:
+      context: ./engine/services/search-service
+      dockerfile: Dockerfile
+    container_name: search-service
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - CORS_ORIGIN=http://localhost:3000
+      - RANKING_SERVICE_URL=http://ranking-service:4000
+      - RANKING_TIMEOUT_MS=10000
+      - RANKING_RETRIES=2
+      - REDIS_URL=redis://redis:6379
+      - CACHE_TTL_SECONDS=600
+      - REDIS_OPERATION_TIMEOUT_MS=2000
+      - MAX_QUERY_LENGTH=500
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+    depends_on:
+      - redis
+      - ranking-service
+
+  ranking-service:
+    build:
+      context: ./engine/services/ranking-service
+      dockerfile: Dockerfile
+    container_name: ranking-service
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - ELASTIC_NODE=http://elasticsearch:9200
+      - ELASTIC_INDEX=pages_v1
+      - ELASTIC_REQUEST_TIMEOUT_MS=60000
+      - ELASTIC_SEARCH_RETRIES=3
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+    depends_on:
+      - elasticsearch
+
+  crawler-service:
+    build:
+      context: ./engine/services/crawler-service
+      dockerfile: Dockerfile
+    container_name: crawler-service
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+      - KAFKA_BROKERS=kafka:9092
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+    depends_on:
+      - kafka
+
+  indexer-service:
+    build:
+      context: ./engine/services/indexer-service
+      dockerfile: Dockerfile
+    container_name: indexer-service
+    restart: unless-stopped
+    ports:
+      - "3003:3003"
+    environment:
+      - PORT=3003
+      - KAFKA_BROKERS=kafka:9092
+      - ELASTIC_NODE=http://elasticsearch:9200
+      - ELASTIC_INDEX=pages_v1
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+    depends_on:
+      - kafka
+      - elasticsearch
+
+  ingestion-service:
+    build:
+      context: ./engine/services/ingestion-service
+      dockerfile: Dockerfile
+    container_name: ingestion-service
+    restart: unless-stopped
+    ports:
+      - "3004:3004"
+    environment:
+      - PORT=3004
+      - KAFKA_BROKERS=kafka:9092
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+    depends_on:
+      - kafka
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+    environment:
+      - KAFKA_NODE_ID=1
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - KAFKA_PROCESS_ROLES=controller,broker
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
+      - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+
 volumes:
   elasticsearch-data:
+  kafka-data:

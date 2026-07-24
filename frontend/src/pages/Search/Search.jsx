@@ -10,26 +10,37 @@ import { useSearchStore } from '../../store/searchStore';
 
 export default function Search() {
   const [searchParams] = useSearchParams();
-  const { page, totalPages, setPage, performSearch, loading, totalResults, setQuery } = useSearchStore();
+  const { page, totalPages, setPage, performSearch, loading, totalResults, query: storeQuery, results } = useSearchStore();
   const hasSearchedRef = useRef(false);
+  const lastQueryRef = useRef('');
   const [inputValue, setInputValue] = useState('');
 
   const queryFromUrl = searchParams.get('q') || '';
 
   useEffect(() => {
-    if (queryFromUrl && !hasSearchedRef.current) {
-      hasSearchedRef.current = true;
-      setInputValue(queryFromUrl);
-      setQuery(queryFromUrl);
-      performSearch({ query: queryFromUrl, page: 1 });
-    }
-  }, [queryFromUrl, performSearch, setQuery]);
+    if (!queryFromUrl) return;
 
-  const handleSearch = () => {
-    if (!inputValue.trim()) return;
-    setQuery(inputValue);
-    setPage(1);
-    performSearch({ query: inputValue, page: 1 });
+    const trimmed = queryFromUrl.trim();
+    const isSameQuery = storeQuery === trimmed && results.length > 0 && !loading;
+
+    if (isSameQuery) {
+      return;
+    }
+
+    if (lastQueryRef.current !== trimmed) {
+      lastQueryRef.current = trimmed;
+      setInputValue(trimmed);
+    }
+
+    if (!hasSearchedRef.current) {
+      hasSearchedRef.current = true;
+      performSearch({ query: trimmed, page: 1 });
+    }
+  }, [queryFromUrl, storeQuery, results.length, loading, performSearch]);
+
+  const handlePageChange = (newPage) => {
+    setPage(newPage);
+    performSearch({ query: queryFromUrl || storeQuery, page: newPage });
   };
 
   return (
@@ -39,7 +50,7 @@ export default function Search() {
       <div className="sticky top-0 z-50 backdrop-blur-xl bg-[#020617]/80 border-b border-white/10">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-center">
           <div className="w-full max-w-2xl">
-            <SearchBar value={inputValue} onChange={setInputValue} onSearch={handleSearch} />
+            <SearchBar value={inputValue} onChange={setInputValue} />
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-6 pb-3">
@@ -66,7 +77,7 @@ export default function Search() {
             <ResultList />
             {totalPages > 1 && !loading && (
               <div className="mt-8">
-                <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+                <Pagination currentPage={page} totalPages={totalPages} onPageChange={handlePageChange} />
               </div>
             )}
           </div>

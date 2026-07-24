@@ -13,15 +13,19 @@ const loggerMiddleware = require("./middlewares/logger");
 const apiKeyAuth = require("./middlewares/apiKeyAuth");
 const rateLimiter = require("./middlewares/rateLimiter");
 const validateSearch = require("./middlewares/validateSearch");
-const { handleSearch } = require("./controllers/searchController");
+const { handleSearch, handleImageSearch } = require("./controllers/searchController");
 const logger = require("./utils/logger");
 
 const app = express();
 
+const corsOrigin = config.corsOrigin === '*' 
+  ? '*' 
+  : [config.corsOrigin, 'http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173', 'http://localhost:4173', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000'];
+
 app.use(helmet());
 app.use(
   cors({
-    origin: config.corsOrigin,
+    origin: corsOrigin,
     methods: ["GET"],
     credentials: true
   })
@@ -40,6 +44,7 @@ app.get("/health", (req, res) => {
 });
 
 app.get("/search", validateSearch, handleSearch);
+app.get("/search/images", validateSearch, handleImageSearch);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Route not found", requestId: req.id });
